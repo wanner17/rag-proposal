@@ -173,6 +173,12 @@
       "type": "file"
     },
     {
+      "path": "frontend\\next.config.ts",
+      "accessCount": 4,
+      "lastAccessed": 1778320427308,
+      "type": "file"
+    },
+    {
       "path": "frontend\\app\\login\\page.tsx",
       "accessCount": 3,
       "lastAccessed": 1778305002402,

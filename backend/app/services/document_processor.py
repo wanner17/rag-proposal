@@ -63,12 +63,13 @@ def semantic_chunk(pages: list[dict], metadata: DocumentMetadata) -> list[ChunkP
     def flush(page: int):
         text = "\n".join(current_lines).strip()
         if len(text) > 50:  # 너무 짧은 조각은 무시
+            meta = metadata.model_dump(exclude={"page"})  # page는 청크별로 따로 지정
             chunks.append(ChunkPayload(
                 chunk_id=str(uuid.uuid4()),
                 text=text,
                 section=current_section,
                 page=page,
-                **metadata.model_dump(),
+                **meta,
             ))
 
     for page_data in pages:

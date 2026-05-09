@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(mkdir -p \"c:\\\\dev\\\\python_rag_ex\\\\.omc\\\\plans\")"
+      "Bash(mkdir -p \"c:\\\\dev\\\\python_rag_ex\\\\.omc\\\\plans\")",
+      "PowerShell(Get-ChildItem \"c:\\\\dev\\\\python_rag_ex\\\\frontend\" -Recurse -Name | Where-Object { $_ -notmatch \"node_modules\" })"
     ],
     "additionalDirectories": [
       "c:\\dev\\python_rag_ex\\.omc"

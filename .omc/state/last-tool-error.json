@@ -1,0 +1,7 @@
+{
+  "tool_name": "Bash",
+  "tool_input_preview": "{\"command\":\"ls c:\\\\dev\\\\python_rag_ex\\\\frontend\\\\\",\"description\":\"List frontend directory contents\"}",
+  "error": "Exit code 2\nls: cannot access 'c:devpython_rag_exfrontend\\': No such file or directory",
+  "timestamp": "2026-05-09T05:34:16.777Z",
+  "retry_count": 1
+}

@@ -1,0 +1,225 @@
+{
+  "version": "1.0.0",
+  "lastScanned": 1778304678974,
+  "projectRoot": "c:\\dev\\python_rag_ex",
+  "techStack": {
+    "languages": [],
+    "frameworks": [],
+    "packageManager": null,
+    "runtime": null
+  },
+  "build": {
+    "buildCommand": null,
+    "testCommand": null,
+    "lintCommand": null,
+    "devCommand": null,
+    "scripts": {}
+  },
+  "conventions": {
+    "namingStyle": null,
+    "importStyle": null,
+    "testPattern": null,
+    "fileOrganization": null
+  },
+  "structure": {
+    "isMonorepo": false,
+    "workspaces": [],
+    "mainDirectories": [
+      "scripts"
+    ],
+    "gitBranches": {
+      "defaultBranch": "main",
+      "branchingStrategy": null
+    }
+  },
+  "customNotes": [],
+  "directoryMap": {
+    "backend": {
+      "path": "backend",
+      "purpose": null,
+      "fileCount": 2,
+      "lastAccessed": 1778304678951,
+      "keyFiles": [
+        "Dockerfile",
+        "requirements.txt"
+      ]
+    },
+    "embedding_service": {
+      "path": "embedding_service",
+      "purpose": null,
+      "fileCount": 1,
+      "lastAccessed": 1778304678952,
+      "keyFiles": [
+        "app.py"
+      ]
+    },
+    "frontend": {
+      "path": "frontend",
+      "purpose": null,
+      "fileCount": 3,
+      "lastAccessed": 1778304678952,
+      "keyFiles": [
+        "Dockerfile",
+        "next.config.ts",
+        "package-lock.json"
+      ]
+    },
+    "nginx": {
+      "path": "nginx",
+      "purpose": null,
+      "fileCount": 1,
+      "lastAccessed": 1778304678952,
+      "keyFiles": [
+        "nginx.conf"
+      ]
+    },
+    "reranker_service": {
+      "path": "reranker_service",
+      "purpose": null,
+      "fileCount": 1,
+      "lastAccessed": 1778304678953,
+      "keyFiles": [
+        "app.py"
+      ]
+    },
+    "scripts": {
+      "path": "scripts",
+      "purpose": "Build/utility scripts",
+      "fileCount": 3,
+      "lastAccessed": 1778304678953,
+      "keyFiles": [
+        "install_vllm.sh",
+        "start_services.sh",
+        "stop_services.sh"
+      ]
+    },
+    "venv": {
+      "path": "venv",
+      "purpose": null,
+      "fileCount": 2,
+      "lastAccessed": 1778304678954,
+      "keyFiles": [
+        "pyvenv.cfg"
+      ]
+    },
+    "backend\\app": {
+      "path": "backend\\app",
+      "purpose": "Application code",
+      "fileCount": 2,
+      "lastAccessed": 1778304678954,
+      "keyFiles": [
+        "main.py",
+        "__init__.py"
+      ]
+    },
+    "frontend\\app": {
+      "path": "frontend\\app",
+      "purpose": "Application code",
+      "fileCount": 2,
+      "lastAccessed": 1778304678955,
+      "keyFiles": [
+        "layout.tsx",
+        "page.tsx"
+      ]
+    },
+    "frontend\\components": {
+      "path": "frontend\\components",
+      "purpose": "UI components",
+      "fileCount": 1,
+      "lastAccessed": 1778304678955,
+      "keyFiles": [
+        "SourceCard.tsx"
+      ]
+    },
+    "frontend\\lib": {
+      "path": "frontend\\lib",
+      "purpose": "Library code",
+      "fileCount": 1,
+      "lastAccessed": 1778304678956,
+      "keyFiles": [
+        "api.ts"
+      ]
+    },
+    "venv\\Lib": {
+      "path": "venv\\Lib",
+      "purpose": "Library code",
+      "fileCount": 0,
+      "lastAccessed": 1778304678957,
+      "keyFiles": []
+    },
+    "venv\\Scripts": {
+      "path": "venv\\Scripts",
+      "purpose": "Build/utility scripts",
+      "fileCount": 35,
+      "lastAccessed": 1778304678957,
+      "keyFiles": [
+        "activate",
+        "activate.bat",
+        "activate.fish"
+      ]
+    }
+  },
+  "hotPaths": [
+    {
+      "path": "frontend\\app\\login\\page.tsx",
+      "accessCount": 3,
+      "lastAccessed": 1778305002402,
+      "type": "file"
+    },
+    {
+      "path": "frontend\\app\\page.tsx",
+      "accessCount": 2,
+      "lastAccessed": 1778304992694,
+      "type": "file"
+    },
+    {
+      "path": "frontend\\package-lock.json",
+      "accessCount": 2,
+      "lastAccessed": 1778305006742,
+      "type": "file"
+    },
+    {
+      "path": "frontend\\app\\layout.tsx",
+      "accessCount": 1,
+      "lastAccessed": 1778304721724,
+      "type": "file"
+    },
+    {
+      "path": "frontend\\lib\\api.ts",
+      "accessCount": 1,
+      "lastAccessed": 1778304724381,
+      "type": "file"
+    },
+    {
+      "path": "frontend\\package.json",
+      "accessCount": 1,
+      "lastAccessed": 1778304970993,
+      "type": "file"
+    },
+    {
+      "path": "frontend\\tsconfig.json",
+      "accessCount": 1,
+      "lastAccessed": 1778304975658,
+      "type": "file"
+    },
+    {
+      "path": "frontend\\postcss.config.mjs",
+      "accessCount": 1,
+      "lastAccessed": 1778304979475,
+      "type": "file"
+    },
+    {
+      "path": "frontend\\tailwind.config.ts",
+      "accessCount": 1,
+      "lastAccessed": 1778304983283,
+      "type": "file"
+    },
+    {
+      "path": "frontend\\app\\globals.css",
+      "accessCount": 1,
+      "lastAccessed": 1778304986867,
+      "type": "file"
+    }
+  ],
+  "userDirectives": []
+}

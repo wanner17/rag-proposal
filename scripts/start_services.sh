@@ -18,6 +18,7 @@ if [ -z "$GGUF_FILE" ]; then
 fi
 nohup /opt/llama.cpp/build/bin/llama-server \
   --model "$GGUF_FILE" \
+  --alias qwen3-8b \
   --host 0.0.0.0 \
   --port 8080 \
   --n-gpu-layers 999 \

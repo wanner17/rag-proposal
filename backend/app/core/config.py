@@ -3,7 +3,7 @@ from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     VLLM_HOST: str = "http://localhost:8080/v1"
-    VLLM_MODEL: str = "qwen3-8b"
+    VLLM_MODEL: str = "Qwen3-8B-Q4_K_M.gguf"
     EMBEDDING_HOST: str = "http://localhost:8001"
     RERANKER_HOST: str = "http://localhost:8002"
     QDRANT_HOST: str = "http://qdrant:6333"

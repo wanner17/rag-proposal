@@ -167,15 +167,21 @@
       "type": "file"
     },
     {
+      "path": "scripts\\start_services.sh",
+      "accessCount": 4,
+      "lastAccessed": 1778319282652,
+      "type": "file"
+    },
+    {
       "path": "frontend\\app\\login\\page.tsx",
       "accessCount": 3,
       "lastAccessed": 1778305002402,
       "type": "file"
     },
     {
-      "path": "scripts\\start_services.sh",
+      "path": "backend\\app\\core\\config.py",
       "accessCount": 3,
-      "lastAccessed": 1778317339854,
+      "lastAccessed": 1778319270393,
       "type": "file"
     },
     {
@@ -188,12 +194,6 @@
       "path": "frontend\\package-lock.json",
       "accessCount": 2,
       "lastAccessed": 1778305006742,
-      "type": "file"
-    },
-    {
-      "path": "backend\\app\\core\\config.py",
-      "accessCount": 2,
-      "lastAccessed": 1778317357562,
       "type": "file"
     },
     {

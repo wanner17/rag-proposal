@@ -11,7 +11,7 @@ SYSTEM_PROMPT = """당신은 공공기관 SI 제안 전문가다.
 
 LLM_PARAMS = {
     "model": settings.VLLM_MODEL,
-    "max_tokens": 300,
+    "max_tokens": 500,
     "temperature": 0.1,
 }
 

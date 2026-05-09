@@ -1,19 +1,19 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from FlagEmbedding import FlagReranker
+from sentence_transformers import CrossEncoder
 import logging
 
 logger = logging.getLogger(__name__)
 
-reranker: FlagReranker | None = None
+reranker: CrossEncoder | None = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global reranker
     logger.info("BGE-Reranker-v2-m3 로딩 중...")
-    reranker = FlagReranker("BAAI/bge-reranker-v2-m3", use_fp16=True)
+    reranker = CrossEncoder("BAAI/bge-reranker-v2-m3", max_length=512)
     logger.info("BGE-Reranker 로딩 완료")
     yield
     reranker = None
@@ -51,7 +51,7 @@ async def rerank(req: RerankRequest):
         raise HTTPException(status_code=400, detail="passages가 비어있음")
 
     pairs = [[req.query, p] for p in req.passages]
-    scores = reranker.compute_score(pairs, normalize=True)
+    scores = reranker.predict(pairs)
 
     indexed = sorted(
         enumerate(zip(scores, req.passages)),

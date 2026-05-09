@@ -4,6 +4,9 @@
 
 set -e
 
+echo "=== [0/4] 빌드 의존성 설치 ==="
+sudo apt install -y python3.12-dev build-essential
+
 echo "=== [1/4] Python 가상환경 생성 ==="
 python3 -m venv /opt/rag-venv
 source /opt/rag-venv/bin/activate

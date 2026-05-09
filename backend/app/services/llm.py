@@ -22,7 +22,7 @@ async def generate(query: str, chunks: list[dict]) -> str:
         {"role": "user", "content": f"참고 문서:\n{context}\n\n질문: {query}"},
     ]
 
-    async with httpx.AsyncClient(timeout=120.0) as client:
+    async with httpx.AsyncClient(timeout=180.0) as client:
         resp = await client.post(
             f"{settings.VLLM_HOST}/chat/completions",
             json={
@@ -30,6 +30,7 @@ async def generate(query: str, chunks: list[dict]) -> str:
                 "messages": messages,
                 "max_tokens": 1024,
                 "temperature": 0.1,
+                "chat_template_kwargs": {"enable_thinking": False},  # Qwen3 thinking 비활성화
             },
         )
         resp.raise_for_status()

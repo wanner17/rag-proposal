@@ -161,9 +161,21 @@
   },
   "hotPaths": [
     {
+      "path": "backend\\app\\services\\llm.py",
+      "accessCount": 4,
+      "lastAccessed": 1778317353055,
+      "type": "file"
+    },
+    {
       "path": "frontend\\app\\login\\page.tsx",
       "accessCount": 3,
       "lastAccessed": 1778305002402,
+      "type": "file"
+    },
+    {
+      "path": "scripts\\start_services.sh",
+      "accessCount": 3,
+      "lastAccessed": 1778317339854,
       "type": "file"
     },
     {
@@ -179,9 +191,9 @@
       "type": "file"
     },
     {
-      "path": "backend\\app\\services\\llm.py",
+      "path": "backend\\app\\core\\config.py",
       "accessCount": 2,
-      "lastAccessed": 1778305915835,
+      "lastAccessed": 1778317357562,
       "type": "file"
     },
     {
@@ -224,6 +236,12 @@
       "path": "frontend\\app\\globals.css",
       "accessCount": 1,
       "lastAccessed": 1778304986867,
+      "type": "file"
+    },
+    {
+      "path": "scripts\\install_llamacpp.sh",
+      "accessCount": 1,
+      "lastAccessed": 1778317319621,
       "type": "file"
     }
   ],

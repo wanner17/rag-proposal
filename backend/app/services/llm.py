@@ -13,7 +13,6 @@ LLM_PARAMS = {
     "model": settings.VLLM_MODEL,
     "max_tokens": 300,
     "temperature": 0.1,
-    "chat_template_kwargs": {"enable_thinking": False},
 }
 
 
@@ -23,7 +22,7 @@ def _build_messages(query: str, chunks: list[dict]) -> list[dict]:
     )
     return [
         {"role": "system", "content": SYSTEM_PROMPT},
-        {"role": "user", "content": f"참고 문서:\n{context}\n\n질문: {query}"},
+        {"role": "user", "content": f"참고 문서:\n{context}\n\n질문: {query} /no_think"},
     ]
 
 

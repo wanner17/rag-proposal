@@ -1,0 +1,113 @@
+from qdrant_client import AsyncQdrantClient
+from qdrant_client.models import (
+    Distance, VectorParams, SparseVectorParams, SparseIndexParams,
+    PointStruct, SparseVector, Filter, FieldCondition, MatchValue,
+    Prefetch, FusionQuery, Fusion,
+)
+from kiwipiepy import Kiwi
+from app.core.config import settings
+from app.services.embedding import get_embedding
+from app.services.reranker import rerank
+
+kiwi = Kiwi()
+_client: AsyncQdrantClient | None = None
+
+VECTOR_DIM = 1024  # BGE-M3 출력 차원
+
+
+def get_client() -> AsyncQdrantClient:
+    global _client
+    if _client is None:
+        _client = AsyncQdrantClient(url=settings.QDRANT_HOST)
+    return _client
+
+
+async def ensure_collection():
+    client = get_client()
+    collections = await client.get_collections()
+    names = [c.name for c in collections.collections]
+    if settings.QDRANT_COLLECTION not in names:
+        await client.create_collection(
+            collection_name=settings.QDRANT_COLLECTION,
+            vectors_config={"dense": VectorParams(size=VECTOR_DIM, distance=Distance.COSINE)},
+            sparse_vectors_config={
+                "bm25": SparseVectorParams(index=SparseIndexParams(on_disk=False))
+            },
+        )
+
+
+def _bm25_encode(text: str) -> SparseVector:
+    # kiwipiepy 형태소 분석 기반 BM25 sparse 벡터
+    tokens = kiwi.tokenize(text)
+    token_texts = [t.form for t in tokens if t.tag not in ("SF", "SP", "SS")]
+    freq: dict[int, float] = {}
+    for token in token_texts:
+        idx = hash(token) % 30000  # 간단한 해시 인덱싱
+        freq[idx] = freq.get(idx, 0) + 1.0
+    if not freq:
+        return SparseVector(indices=[0], values=[0.0])
+    return SparseVector(indices=list(freq.keys()), values=list(freq.values()))
+
+
+async def index_chunks(chunks: list[dict]):
+    client = get_client()
+    await ensure_collection()
+
+    texts = [c["text"] for c in chunks]
+    dense_vecs = []
+    # 배치 처리 (임베딩 서비스 한 번에 요청)
+    from app.services.embedding import get_embeddings
+    dense_vecs = await get_embeddings(texts)
+
+    points = []
+    for chunk, dense in zip(chunks, dense_vecs):
+        sparse = _bm25_encode(chunk["text"])
+        points.append(PointStruct(
+            id=chunk["chunk_id"],
+            vector={"dense": dense, "bm25": sparse},
+            payload={k: v for k, v in chunk.items() if k != "chunk_id"},
+        ))
+
+    await client.upsert(collection_name=settings.QDRANT_COLLECTION, points=points)
+
+
+async def hybrid_search(query: str, department: str | None, top_k: int = 20) -> list[dict]:
+    client = get_client()
+    dense_vec = await get_embedding(query)
+    sparse_vec = _bm25_encode(query)
+
+    query_filter = None
+    if department:
+        query_filter = Filter(
+            must=[FieldCondition(key="department", match=MatchValue(value=department))]
+        )
+
+    results = await client.query_points(
+        collection_name=settings.QDRANT_COLLECTION,
+        prefetch=[
+            Prefetch(query=dense_vec, using="dense", limit=top_k),
+            Prefetch(query=sparse_vec, using="bm25", limit=top_k),
+        ],
+        query=FusionQuery(fusion=Fusion.RRF),
+        query_filter=query_filter,
+        limit=top_k,
+        with_payload=True,
+    )
+    return [r.payload for r in results.points]
+
+
+async def retrieve(query: str, department: str | None, top_n: int = 5) -> list[dict]:
+    candidates = await hybrid_search(query, department, top_k=20)
+    if not candidates:
+        return []
+    passages = [c["text"] for c in candidates]
+    reranked = await rerank(query, passages, top_n=top_n)
+
+    # reranker 결과에 원본 메타데이터 병합
+    result = []
+    for r in reranked:
+        orig_idx = r["original_index"]
+        chunk = dict(candidates[orig_idx])
+        chunk["score"] = r["score"]
+        result.append(chunk)
+    return result

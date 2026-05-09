@@ -161,15 +161,15 @@
   },
   "hotPaths": [
     {
-      "path": "backend\\app\\services\\llm.py",
-      "accessCount": 4,
-      "lastAccessed": 1778317353055,
+      "path": "scripts\\start_services.sh",
+      "accessCount": 5,
+      "lastAccessed": 1778319456292,
       "type": "file"
     },
     {
-      "path": "scripts\\start_services.sh",
+      "path": "backend\\app\\services\\llm.py",
       "accessCount": 4,
-      "lastAccessed": 1778319282652,
+      "lastAccessed": 1778317353055,
       "type": "file"
     },
     {

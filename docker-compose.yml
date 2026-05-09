@@ -33,7 +33,7 @@ services:
       qdrant:
         condition: service_healthy
     ports:
-      - "8000:8000"
+      - "8088:8000"   # MuseTalk이 8000 점유 중이라 8088 사용
     volumes:
       - ./volumes/documents:/app/documents     # 문서 업로드 저장소
 

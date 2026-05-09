@@ -11,14 +11,16 @@ mkdir -p "$LOG_DIR"
 
 # ─── 1. vLLM (Qwen3 14B) ────────────────────────────────────────────────────
 echo "[vLLM] Qwen3-14B 시작 중..."
-# GB10 통합 메모리 128GB → gpu_memory_utilization 0.7로 여유 확보
+# GB10 통합 메모리: 0.3으로 제한 (119GB × 0.3 = ~36GB KV 캐시)
+# MuseTalk 등 다른 서비스와 메모리 공존을 위해 낮게 설정
 # enforce_eager: GB10에서 CUDA graph 컴파일 문제 방지
 nohup python3 -m vllm.entrypoints.openai.api_server \
   --model Qwen/Qwen3-14B \
   --served-model-name qwen3-14b \
   --host 0.0.0.0 \
   --port 8080 \
-  --gpu-memory-utilization 0.7 \
+  --gpu-memory-utilization 0.3 \
+  --max-num-seqs 32 \
   --max-model-len 8192 \
   --enforce-eager \
   --dtype bfloat16 \

@@ -197,6 +197,12 @@
       "type": "file"
     },
     {
+      "path": "scripts\\install_llamacpp.sh",
+      "accessCount": 2,
+      "lastAccessed": 1778317742603,
+      "type": "file"
+    },
+    {
       "path": "frontend\\app\\layout.tsx",
       "accessCount": 1,
       "lastAccessed": 1778304721724,
@@ -236,12 +242,6 @@
       "path": "frontend\\app\\globals.css",
       "accessCount": 1,
       "lastAccessed": 1778304986867,
-      "type": "file"
-    },
-    {
-      "path": "scripts\\install_llamacpp.sh",
-      "accessCount": 1,
-      "lastAccessed": 1778317319621,
       "type": "file"
     }
   ],

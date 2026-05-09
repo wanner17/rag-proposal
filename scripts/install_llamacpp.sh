@@ -24,7 +24,7 @@ cmake --build build --config Release -j$(nproc)
 echo "=== [3/3] Qwen3-8B Q4_K_M 다운로드 (~5GB) ==="
 mkdir -p "$MODEL_DIR"
 source /opt/rag-venv/bin/activate
-huggingface-cli download Qwen/Qwen3-8B-GGUF \
+hf download Qwen/Qwen3-8B-GGUF \
   --include "*q4_k_m*" \
   --local-dir "$MODEL_DIR"
 

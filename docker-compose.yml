@@ -38,6 +38,7 @@ services:
       - ./volumes/documents:/app/documents     # 문서 업로드 저장소
 
   frontend:
+    profiles: ["production"]
     build:
       context: ./frontend
       dockerfile: Dockerfile
@@ -50,6 +51,7 @@ services:
       - "3000:3000"
 
   nginx:
+    profiles: ["production"]
     image: nginx:alpine    # arm64 지원
     restart: unless-stopped
     volumes:

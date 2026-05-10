@@ -209,6 +209,12 @@
       "type": "file"
     },
     {
+      "path": "docker-compose.yml",
+      "accessCount": 2,
+      "lastAccessed": 1778387268456,
+      "type": "file"
+    },
+    {
       "path": "frontend\\app\\layout.tsx",
       "accessCount": 1,
       "lastAccessed": 1778304721724,

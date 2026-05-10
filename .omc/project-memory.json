@@ -168,8 +168,8 @@
     },
     {
       "path": "scripts\\start_services.sh",
-      "accessCount": 5,
-      "lastAccessed": 1778319456292,
+      "accessCount": 6,
+      "lastAccessed": 1778386758644,
       "type": "file"
     },
     {
@@ -254,6 +254,12 @@
       "path": "frontend\\app\\api\\ingest\\route.ts",
       "accessCount": 1,
       "lastAccessed": 1778320660150,
+      "type": "file"
+    },
+    {
+      "path": "scripts\\start_all.sh",
+      "accessCount": 1,
+      "lastAccessed": 1778386775632,
       "type": "file"
     }
   ],

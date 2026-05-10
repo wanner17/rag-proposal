@@ -162,8 +162,8 @@
   "hotPaths": [
     {
       "path": "backend\\app\\services\\llm.py",
-      "accessCount": 7,
-      "lastAccessed": 1778319750505,
+      "accessCount": 8,
+      "lastAccessed": 1778388533071,
       "type": "file"
     },
     {

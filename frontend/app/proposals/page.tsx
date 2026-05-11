@@ -87,7 +87,12 @@ export default function ProposalsPage() {
         token
       );
       setResult(response);
-      setStatus(response.found ? "success" : "no_results");
+      if (response.status === "error") {
+        setError(response.warnings.join("\n") || "제안서 초안 생성 중 오류가 발생했습니다.");
+        setStatus("error");
+      } else {
+        setStatus(response.found ? "success" : "no_results");
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "제안서 초안 생성 중 오류가 발생했습니다.");
       setStatus("error");

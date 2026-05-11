@@ -132,3 +132,54 @@ def test_known_scenario_id_can_drive_query_without_custom_prompt(monkeypatch):
     assert response.status_code == 200
     assert "교육청 노후 업무시스템 고도화" in captured["query"]
     assert response.json()["found"] is True
+
+
+def test_retrieval_failure_returns_error_contract(monkeypatch):
+    async def fail_retrieve(*args, **kwargs):
+        raise RuntimeError("search unavailable")
+
+    async def fail_generate(*args, **kwargs):
+        raise AssertionError("LLM must not be called when retrieval fails")
+
+    monkeypatch.setattr("app.api.proposals.retrieve_with_metadata", fail_retrieve)
+    monkeypatch.setattr("app.api.proposals.generate_proposal_draft", fail_generate)
+
+    client = TestClient(app)
+    response = client.post(
+        "/api/proposals/draft",
+        headers=_headers(),
+        json={"query": "제안서 초안"},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["found"] is False
+    assert data["status"] == "error"
+    assert data["variants"] == []
+    assert "검색 서비스를 확인하세요" in data["warnings"][0]
+
+
+def test_llm_failure_returns_partial_with_sources(monkeypatch):
+    async def fake_retrieve_with_metadata(query, department, top_k=20, top_n=5):
+        return [_chunk()], [_chunk()]
+
+    async def fail_generate(*args, **kwargs):
+        raise RuntimeError("llm unavailable")
+
+    monkeypatch.setattr("app.api.proposals.retrieve_with_metadata", fake_retrieve_with_metadata)
+    monkeypatch.setattr("app.api.proposals.generate_proposal_draft", fail_generate)
+
+    client = TestClient(app)
+    response = client.post(
+        "/api/proposals/draft",
+        headers=_headers(),
+        json={"query": "제안서 초안"},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["found"] is True
+    assert data["status"] == "partial"
+    assert data["shared_sources"][0]["point_id"] == "point-1"
+    assert "근거 문서는 찾았지만" in data["variants"][0]["draft_markdown"]
+    assert data["warnings"]

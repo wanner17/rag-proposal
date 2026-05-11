@@ -1,4 +1,5 @@
 from uuid import uuid4
+import logging
 from fastapi import APIRouter, Depends
 from app.core.auth import get_current_user, resolve_department_scope
 from app.models.schemas import (
@@ -13,8 +14,11 @@ from app.services.retrieval import retrieve_with_metadata
 from app.services.retrieval_experiments import CandidateIdentity, quality_summary
 
 router = APIRouter(prefix="/proposals", tags=["proposals"])
+logger = logging.getLogger(__name__)
 
 NO_RESULTS_MESSAGE = "관련 제안서 근거 문서를 찾지 못했습니다."
+ERROR_MESSAGE = "제안서 초안 생성 중 오류가 발생했습니다."
+PARTIAL_MESSAGE = "근거 문서는 찾았지만 초안 생성 모델 호출에 실패했습니다. 근거 출처만 반환합니다."
 
 DEMO_SCENARIOS: dict[str, str] = {
     "demo-public-si-modernization": "교육청 노후 업무시스템 고도화 사업 제안서의 추진전략, 구현방안, 일정/리스크 섹션 초안을 작성해줘.",
@@ -71,12 +75,26 @@ async def draft_proposal(req: ProposalDraftRequest, user: UserInfo = Depends(get
             no_results_message=NO_RESULTS_MESSAGE,
         )
 
-    candidates, reranked = await retrieve_with_metadata(
-        query,
-        department=department_scope,
-        top_k=req.top_k,
-        top_n=req.top_n,
-    )
+    try:
+        candidates, reranked = await retrieve_with_metadata(
+            query,
+            department=department_scope,
+            top_k=req.top_k,
+            top_n=req.top_n,
+        )
+    except Exception as exc:
+        logger.exception("Proposal retrieval failed")
+        return ProposalDraftResponse(
+            request_id=request_id,
+            found=False,
+            status="error",
+            scenario_id=req.scenario_id,
+            department_scope=department_scope,
+            variants=[],
+            shared_sources=[],
+            warnings=[f"{ERROR_MESSAGE} 검색 서비스를 확인하세요. ({type(exc).__name__})"],
+            no_results_message=None,
+        )
 
     if not candidates or not reranked:
         return ProposalDraftResponse(
@@ -99,11 +117,19 @@ async def draft_proposal(req: ProposalDraftRequest, user: UserInfo = Depends(get
         chunking_variant="default",
         filters={"department": department_scope},
     )
-    draft_markdown = await generate_proposal_draft(query, reranked)
     sources = [_proposal_source(chunk) for chunk in reranked]
     warnings = []
     if len(reranked) < req.top_n:
         warnings.append(f"요청한 top_n={req.top_n}보다 적은 {len(reranked)}개 근거만 발견되었습니다.")
+    status = "ok"
+
+    try:
+        draft_markdown = await generate_proposal_draft(query, reranked)
+    except Exception as exc:
+        logger.exception("Proposal draft generation failed")
+        status = "partial"
+        draft_markdown = PARTIAL_MESSAGE
+        warnings.append(f"{PARTIAL_MESSAGE} ({type(exc).__name__})")
 
     variant = ProposalVariant(
         variant_id="rerank-top-n",
@@ -118,7 +144,7 @@ async def draft_proposal(req: ProposalDraftRequest, user: UserInfo = Depends(get
     return ProposalDraftResponse(
         request_id=request_id,
         found=True,
-        status="ok",
+        status=status,
         scenario_id=req.scenario_id,
         department_scope=department_scope,
         variants=[variant],

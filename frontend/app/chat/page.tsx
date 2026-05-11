@@ -1,7 +1,7 @@
 "use client";
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { chatStream, Source } from "@/lib/api";
+import { chatStream, Source, UnauthorizedError } from "@/lib/api";
 import SourceCard from "@/components/SourceCard";
 
 interface Message {
@@ -16,6 +16,7 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [authError, setAuthError] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -38,6 +39,22 @@ export default function ChatPage() {
     setMessages((prev) => [...prev, { role: "assistant", content: "", streaming: true }]);
 
     const token = localStorage.getItem("token") ?? "";
+    if (!token) {
+      setAuthError("로그인이 만료되었습니다. 다시 로그인해 주세요.");
+      setMessages((prev) => {
+        const next = [...prev];
+        next[next.length - 1] = {
+          role: "assistant",
+          content: "로그인이 만료되었습니다. 다시 로그인해 주세요.",
+          streaming: false,
+        };
+        return next;
+      });
+      setLoading(false);
+      router.push("/login");
+      return;
+    }
+
     try {
       await chatStream(
         query,
@@ -68,7 +85,24 @@ export default function ChatPage() {
           setLoading(false);
         }
       );
-    } catch {
+    } catch (err) {
+      if (err instanceof UnauthorizedError) {
+        localStorage.removeItem("token");
+        setAuthError(err.message);
+        setMessages((prev) => {
+          const next = [...prev];
+          next[next.length - 1] = {
+            role: "assistant",
+            content: "로그인이 만료되었습니다. 다시 로그인해 주세요.",
+            streaming: false,
+          };
+          return next;
+        });
+        setLoading(false);
+        router.push("/login");
+        return;
+      }
+
       setMessages((prev) => {
         const next = [...prev];
         next[next.length - 1] = {
@@ -99,6 +133,11 @@ export default function ChatPage() {
           <button onClick={handleLogout} className="text-sm text-red-500 hover:text-red-700">로그아웃</button>
         </div>
       </header>
+      {authError && (
+        <div className="px-6 py-2 text-sm text-red-600 bg-red-50 border-b border-red-100">
+          {authError}
+        </div>
+      )}
 
       {/* 메시지 목록 */}
       <main className="flex-1 overflow-y-auto px-6 py-4 space-y-6">

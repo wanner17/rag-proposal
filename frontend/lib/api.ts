@@ -1,5 +1,12 @@
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "/api";
 
+export class UnauthorizedError extends Error {
+  constructor(message = "인증이 만료되었습니다. 다시 로그인해 주세요.") {
+    super(message);
+    this.name = "UnauthorizedError";
+  }
+}
+
 export async function login(username: string, password: string) {
   const res = await fetch(`${API_BASE}/auth/login`, {
     method: "POST",
@@ -26,6 +33,7 @@ export async function chatStream(
     body: JSON.stringify({ query }),
   });
 
+  if (res.status === 401) throw new UnauthorizedError();
   if (!res.ok) throw new Error("요청 실패");
   const reader = res.body!.getReader();
   const decoder = new TextDecoder();

@@ -23,6 +23,11 @@ LLM_PARAMS = {
     "temperature": 0.1,
 }
 
+LLM_UNAVAILABLE_MESSAGE = (
+    "답변 생성 모델에 연결하지 못했습니다. "
+    "llama.cpp 서버가 실행 중인지와 LLM_HOST 설정을 확인해 주세요."
+)
+
 
 def _build_messages(query: str, chunks: list[dict]) -> list[dict]:
     context = "\n\n---\n\n".join(
@@ -38,13 +43,16 @@ async def generate(query: str, chunks: list[dict]) -> str:
     if not chunks:
         return "관련 문서를 찾지 못했습니다."
 
-    async with httpx.AsyncClient(timeout=180.0) as client:
-        resp = await client.post(
-            f"{settings.LLM_HOST}/chat/completions",
-            json={"messages": _build_messages(query, chunks), **LLM_PARAMS},
-        )
-        resp.raise_for_status()
-        return resp.json()["choices"][0]["message"]["content"]
+    try:
+        async with httpx.AsyncClient(timeout=180.0) as client:
+            resp = await client.post(
+                f"{settings.LLM_HOST}/chat/completions",
+                json={"messages": _build_messages(query, chunks), **LLM_PARAMS},
+            )
+            resp.raise_for_status()
+            return resp.json()["choices"][0]["message"]["content"]
+    except httpx.HTTPError:
+        return LLM_UNAVAILABLE_MESSAGE
 
 
 async def generate_stream(query: str, chunks: list[dict]) -> AsyncGenerator[str, None]:
@@ -54,25 +62,32 @@ async def generate_stream(query: str, chunks: list[dict]) -> AsyncGenerator[str,
         yield "data: [DONE]\n\n"
         return
 
-    async with httpx.AsyncClient(timeout=180.0) as client:
-        async with client.stream(
-            "POST",
-            f"{settings.LLM_HOST}/chat/completions",
-            json={"messages": _build_messages(query, chunks), "stream": True, **LLM_PARAMS},
-        ) as resp:
-            resp.raise_for_status()
-            async for line in resp.aiter_lines():
-                if not line.startswith("data:"):
-                    continue
-                payload = line[5:].strip()
-                if payload == "[DONE]":
-                    break
-                try:
-                    data = json.loads(payload)
-                    token = data["choices"][0]["delta"].get("content", "")
-                    if token:
-                        yield f"data: {json.dumps({'token': token})}\n\n"
-                except (KeyError, json.JSONDecodeError):
-                    continue
+    try:
+        async with httpx.AsyncClient(timeout=180.0) as client:
+            async with client.stream(
+                "POST",
+                f"{settings.LLM_HOST}/chat/completions",
+                json={
+                    "messages": _build_messages(query, chunks),
+                    "stream": True,
+                    **LLM_PARAMS,
+                },
+            ) as resp:
+                resp.raise_for_status()
+                async for line in resp.aiter_lines():
+                    if not line.startswith("data:"):
+                        continue
+                    payload = line[5:].strip()
+                    if payload == "[DONE]":
+                        break
+                    try:
+                        data = json.loads(payload)
+                        token = data["choices"][0]["delta"].get("content", "")
+                        if token:
+                            yield f"data: {json.dumps({'token': token})}\n\n"
+                    except (KeyError, json.JSONDecodeError):
+                        continue
+    except httpx.HTTPError:
+        yield f"data: {json.dumps({'token': LLM_UNAVAILABLE_MESSAGE})}\n\n"
 
     yield "data: [DONE]\n\n"

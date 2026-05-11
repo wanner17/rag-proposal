@@ -1,4 +1,10 @@
+import asyncio
+import json
+
+import httpx
+
 from app.services.llm import SYSTEM_PROMPT
+from app.services.llm import LLM_UNAVAILABLE_MESSAGE, generate, generate_stream
 from app.services.proposal_llm import PROPOSAL_SYSTEM_PROMPT
 
 
@@ -12,3 +18,60 @@ def test_proposal_prompt_guides_complete_bounded_drafts():
     assert "중간에 끊기지 않도록" in PROPOSAL_SYSTEM_PROMPT
     assert "핵심 문단" in PROPOSAL_SYSTEM_PROMPT
     assert "더 자세히 확장할 섹션" in PROPOSAL_SYSTEM_PROMPT
+
+
+def test_stream_returns_sse_error_instead_of_raising_on_llm_connection_failure(monkeypatch):
+    class FailingStream:
+        async def __aenter__(self):
+            raise httpx.ConnectError("llm unavailable")
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+    class FailingClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+        def stream(self, *args, **kwargs):
+            return FailingStream()
+
+    monkeypatch.setattr("app.services.llm.httpx.AsyncClient", FailingClient)
+
+    async def collect():
+        chunks = []
+        async for chunk in generate_stream("질문", [{"file": "a.pdf", "page": 1, "text": "근거"}]):
+            chunks.append(chunk)
+        return chunks
+
+    chunks = asyncio.run(collect())
+
+    payload = json.loads(chunks[0].removeprefix("data: ").strip())
+    assert payload["token"] == LLM_UNAVAILABLE_MESSAGE
+    assert chunks[-1] == "data: [DONE]\n\n"
+
+
+def test_generate_returns_error_message_on_llm_connection_failure(monkeypatch):
+    class FailingClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+        async def post(self, *args, **kwargs):
+            raise httpx.ConnectError("llm unavailable")
+
+    monkeypatch.setattr("app.services.llm.httpx.AsyncClient", FailingClient)
+
+    answer = asyncio.run(generate("질문", [{"file": "a.pdf", "page": 1, "text": "근거"}]))
+
+    assert answer == LLM_UNAVAILABLE_MESSAGE

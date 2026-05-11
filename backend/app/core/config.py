@@ -1,10 +1,16 @@
-from pydantic import Field
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    LLM_HOST: str = Field(default="http://localhost:8080/v1", alias="VLLM_HOST")
-    LLM_MODEL: str = Field(default="Qwen3-8B-Q4_K_M.gguf", alias="VLLM_MODEL")
+    LLM_HOST: str = Field(
+        default="http://localhost:8080/v1",
+        validation_alias=AliasChoices("LLM_HOST", "VLLM_HOST"),
+    )
+    LLM_MODEL: str = Field(
+        default="Qwen3-8B-Q4_K_M.gguf",
+        validation_alias=AliasChoices("LLM_MODEL", "VLLM_MODEL"),
+    )
     EMBEDDING_HOST: str = "http://localhost:8001"
     RERANKER_HOST: str = "http://localhost:8002"
     QDRANT_HOST: str = "http://qdrant:6333"

@@ -9,41 +9,11 @@ import {
   ProposalVariant,
 } from "@/lib/api";
 
-const SCENARIOS = [
-  {
-    id: "demo-public-si-modernization",
-    label: "공공 SI 고도화",
-    query: "교육청 노후 업무시스템 고도화 사업 제안서의 추진전략, 구현방안, 일정/리스크 섹션 초안을 작성해줘.",
-  },
-  {
-    id: "demo-learning-platform",
-    label: "LMS 플랫폼",
-    query: "공공기관 이러닝 플랫폼 구축 제안서의 사업 이해, 제안 접근방안, 운영 지원 방안을 초안으로 작성해줘.",
-  },
-  {
-    id: "demo-smart-factory-ai",
-    label: "제조 AI PoC",
-    query: "제조 설비 예측정비 AI PoC 제안서 초안을 작성하고 데이터 수집, 모델 운영, 현장 적용 리스크를 정리해줘.",
-  },
-  {
-    id: "demo-public-cloud-migration",
-    label: "공공 클라우드",
-    query: "공공기관 클라우드 전환 사업 제안서의 전환 전략, 보안/DR, 비용 최적화, 단계별 이행계획 초안을 작성해줘.",
-  },
-  {
-    id: "demo-healthcare-scope-check",
-    label: "헬스케어 범위",
-    query: "병원 데이터 플랫폼 제안서의 개인정보 보호, 데이터 거버넌스, 분석 포털 구축 방안을 초안으로 작성해줘.",
-  },
-];
-
 type Status = "idle" | "loading" | "success" | "no_results" | "error";
 
 export default function ProposalsPage() {
   const router = useRouter();
-  const [query, setQuery] = useState(SCENARIOS[0].query);
-  const [scenarioId, setScenarioId] = useState<string | null>(SCENARIOS[0].id);
-  const [department, setDepartment] = useState("");
+  const [query, setQuery] = useState("");
   const [topK, setTopK] = useState(12);
   const [topN, setTopN] = useState(5);
   const [status, setStatus] = useState<Status>("idle");
@@ -55,14 +25,6 @@ export default function ProposalsPage() {
   }, [router]);
 
   const activeVariant = useMemo(() => result?.variants?.[0] ?? null, [result]);
-
-  function chooseScenario(id: string, scenarioQuery: string) {
-    setScenarioId(id);
-    setQuery(scenarioQuery);
-    setResult(null);
-    setStatus("idle");
-    setError("");
-  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -78,9 +40,9 @@ export default function ProposalsPage() {
       const safeTopN = clamp(topN, 1, 10);
       const response = await draftProposal(
         {
-          scenario_id: scenarioId,
+          scenario_id: null,
           query: query.trim(),
-          department: department.trim() || null,
+          department: null,
           top_k: safeTopK,
           top_n: safeTopN,
         },
@@ -113,6 +75,7 @@ export default function ProposalsPage() {
         </div>
         <nav className="flex gap-3 text-sm">
           <a href="/chat" className="text-gray-500 hover:text-gray-700">채팅</a>
+          <a href="/documents" className="text-gray-500 hover:text-gray-700">문서 조회</a>
           <a href="/upload" className="text-gray-500 hover:text-gray-700">문서 업로드</a>
           <button onClick={handleLogout} className="text-red-500 hover:text-red-700">로그아웃</button>
         </nav>
@@ -121,47 +84,17 @@ export default function ProposalsPage() {
       <div className="grid gap-6 lg:grid-cols-[380px_1fr]">
         <aside className="bg-white border rounded-2xl shadow-sm p-5 h-fit">
           <h2 className="font-semibold mb-3">초안 요청</h2>
-          <div className="grid grid-cols-2 gap-2 mb-4">
-            {SCENARIOS.map((scenario) => (
-              <button
-                key={scenario.id}
-                type="button"
-                onClick={() => chooseScenario(scenario.id, scenario.query)}
-                className={`rounded-xl border px-3 py-2 text-sm text-left transition ${
-                  scenarioId === scenario.id
-                    ? "border-blue-500 bg-blue-50 text-blue-700"
-                    : "border-gray-200 hover:border-blue-300"
-                }`}
-              >
-                {scenario.label}
-              </button>
-            ))}
-          </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">프롬프트 / 시나리오</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">프롬프트</label>
               <textarea
                 className="w-full min-h-36 border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 value={query}
-                onChange={(e) => {
-                  setQuery(e.target.value);
-                  setScenarioId(null);
-                }}
+                onChange={(e) => setQuery(e.target.value)}
                 placeholder="작성할 제안서 섹션이나 상황을 입력하세요."
                 required
               />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">부서 범위 (선택)</label>
-              <input
-                className="w-full border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                value={department}
-                onChange={(e) => setDepartment(e.target.value)}
-                placeholder="예: 공공사업팀"
-              />
-              <p className="text-xs text-gray-400 mt-1">권한이 제한된 사용자는 서버에서 허용 부서로 좁혀집니다.</p>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
@@ -181,7 +114,7 @@ export default function ProposalsPage() {
 
         <main className="space-y-5">
           {status === "idle" && (
-            <EmptyState title="시나리오를 선택하거나 직접 요청을 입력하세요." />
+            <EmptyState title="제안서 초안 요청을 직접 입력하세요." />
           )}
 
           {status === "loading" && (
@@ -276,8 +209,6 @@ function ResultMeta({ result }: { result: ProposalDraftResponse }) {
       <div className="flex flex-wrap gap-2 text-xs text-gray-600">
         <Badge label={`request ${result.request_id}`} />
         <Badge label={`status ${result.status}`} />
-        <Badge label={`scenario ${result.scenario_id || "custom"}`} />
-        <Badge label={`department ${result.department_scope || "all/allowed"}`} />
       </div>
       <Warnings warnings={result.warnings} />
     </section>

@@ -101,3 +101,37 @@ class ProposalDraftResponse(BaseModel):
     shared_sources: list[ProposalSource]
     warnings: list[str] = []
     no_results_message: str | None = None
+
+
+class DocumentSummary(BaseModel):
+    file: str
+    department: str | None = None
+    year: int | None = None
+    client: str | None = None
+    domain: str | None = None
+    project_type: str | None = None
+    pages: list[int] = []
+    sections: list[str] = []
+    chunk_count: int = 0
+
+
+class DocumentSearchRequest(BaseModel):
+    query: str = Field(..., min_length=1, max_length=1000)
+    top_k: int = Field(default=10, ge=1, le=50)
+
+
+class DocumentSearchHit(BaseModel):
+    point_id: str
+    file: str
+    page: int = 0
+    section: str = ""
+    department: str | None = None
+    score: float | None = None
+    score_source: str = "retrieval"
+    text: str
+
+
+class DocumentSearchResponse(BaseModel):
+    found: bool
+    documents: list[DocumentSummary]
+    hits: list[DocumentSearchHit]

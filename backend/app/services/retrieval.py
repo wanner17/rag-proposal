@@ -71,6 +71,14 @@ async def index_chunks(chunks: list[dict]):
     await client.upsert(collection_name=settings.QDRANT_COLLECTION, points=points)
 
 
+def _department_filter(department: str | None) -> Filter | None:
+    if not department:
+        return None
+    return Filter(
+        must=[FieldCondition(key="department", match=MatchValue(value=department))]
+    )
+
+
 def _point_to_chunk(point) -> dict:
     payload = dict(point.payload or {})
     point_id = getattr(point, "id", None)
@@ -87,11 +95,7 @@ async def hybrid_search(query: str, department: str | None, top_k: int = 20) -> 
     dense_vec = await get_embedding(query)
     sparse_vec = _bm25_encode(query)
 
-    query_filter = None
-    if department:
-        query_filter = Filter(
-            must=[FieldCondition(key="department", match=MatchValue(value=department))]
-        )
+    query_filter = _department_filter(department)
 
     results = await client.query_points(
         collection_name=settings.QDRANT_COLLECTION,
@@ -105,6 +109,18 @@ async def hybrid_search(query: str, department: str | None, top_k: int = 20) -> 
         with_payload=True,
     )
     return [_point_to_chunk(r) for r in results.points]
+
+
+async def list_indexed_chunks(department: str | None, limit: int = 500) -> list[dict]:
+    client = get_client()
+    points, _ = await client.scroll(
+        collection_name=settings.QDRANT_COLLECTION,
+        scroll_filter=_department_filter(department),
+        limit=limit,
+        with_payload=True,
+        with_vectors=False,
+    )
+    return [_point_to_chunk(point) for point in points]
 
 
 def merge_rerank_scores(candidates: list[dict], reranked: list[dict]) -> list[dict]:

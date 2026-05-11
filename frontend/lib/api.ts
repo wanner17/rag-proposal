@@ -87,6 +87,27 @@ export async function draftProposal(request: ProposalDraftRequest, token: string
   return res.json() as Promise<ProposalDraftResponse>;
 }
 
+export async function listDocuments(token: string) {
+  const res = await fetch(`${API_BASE}/documents`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error("문서 목록 조회 실패");
+  return res.json() as Promise<DocumentSearchResponse>;
+}
+
+export async function searchDocuments(request: DocumentSearchRequest, token: string) {
+  const res = await fetch(`${API_BASE}/documents/search`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(request),
+  });
+  if (!res.ok) throw new Error("문서 검색 실패");
+  return res.json() as Promise<DocumentSearchResponse>;
+}
+
 export interface Source {
   file: string;
   page: number;
@@ -134,4 +155,38 @@ export interface ProposalDraftResponse {
   shared_sources: ProposalSource[];
   warnings: string[];
   no_results_message?: string | null;
+}
+
+export interface DocumentSummary {
+  file: string;
+  department?: string | null;
+  year?: number | null;
+  client?: string | null;
+  domain?: string | null;
+  project_type?: string | null;
+  pages: number[];
+  sections: string[];
+  chunk_count: number;
+}
+
+export interface DocumentSearchRequest {
+  query: string;
+  top_k?: number;
+}
+
+export interface DocumentSearchHit {
+  point_id: string;
+  file: string;
+  page: number;
+  section: string;
+  department?: string | null;
+  score?: number | null;
+  score_source: ScoreSource;
+  text: string;
+}
+
+export interface DocumentSearchResponse {
+  found: boolean;
+  documents: DocumentSummary[];
+  hits: DocumentSearchHit[];
 }

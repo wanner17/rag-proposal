@@ -40,6 +40,7 @@ export default function UploadPage() {
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-xl font-bold">문서 업로드</h1>
           <div className="flex gap-3">
+            <button onClick={() => router.push("/documents")} className="text-sm text-blue-600 hover:underline">문서 조회</button>
             <button onClick={() => router.push("/proposals")} className="text-sm text-blue-600 hover:underline">제안서 초안</button>
             <button onClick={() => router.push("/chat")} className="text-sm text-blue-600 hover:underline">← 채팅으로</button>
           </div>

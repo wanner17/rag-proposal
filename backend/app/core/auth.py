@@ -37,6 +37,18 @@ def authenticate_user(username: str, password: str) -> UserInfo | None:
     )
 
 
+def resolve_department_scope(user: UserInfo, requested_department: str | None = None) -> str | None:
+    """Return the effective search scope for a request.
+
+    Admin users may search all departments (None) or narrow to a requested
+    department. Non-admin users are always constrained to their token
+    department, even if a different department is requested.
+    """
+    if user.is_admin:
+        return requested_department or None
+    return user.department
+
+
 async def get_current_user(token: str = Depends(oauth2_scheme)) -> UserInfo:
     exc = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,

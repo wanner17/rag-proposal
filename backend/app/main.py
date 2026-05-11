@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
-from app.api import auth, chat, ingest
+from app.api import auth, chat, ingest, proposals
 from app.services.retrieval import ensure_collection
 
 logging.basicConfig(level=settings.LOG_LEVEL)
@@ -28,6 +28,7 @@ app.add_middleware(
 app.include_router(auth.router, prefix="/api")
 app.include_router(chat.router, prefix="/api")
 app.include_router(ingest.router, prefix="/api")
+app.include_router(proposals.router, prefix="/api")
 
 
 @app.get("/api/health")

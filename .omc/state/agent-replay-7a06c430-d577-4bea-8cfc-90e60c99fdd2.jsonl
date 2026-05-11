@@ -1,3 +1,0 @@
-{"t":0,"agent":"system","event":"skill_invoked","skill_name":"caveman"}
-{"t":0,"agent":"ab7d112","agent_type":"explore","event":"agent_start","parent_mode":"none"}
-{"t":0,"agent":"ab7d112","agent_type":"explore","event":"agent_stop","success":true,"duration_ms":19609}

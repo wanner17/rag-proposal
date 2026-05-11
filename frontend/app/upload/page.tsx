@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ingestDocument } from "@/lib/api";
 
@@ -9,6 +9,10 @@ export default function UploadPage() {
   const [form, setForm] = useState({ year: "2024", client: "", domain: "", project_type: "", department: "" });
   const [status, setStatus] = useState<"idle" | "uploading" | "done" | "error">("idle");
   const [result, setResult] = useState("");
+
+  useEffect(() => {
+    if (!localStorage.getItem("token")) router.push("/login");
+  }, [router]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -35,7 +39,10 @@ export default function UploadPage() {
       <div className="bg-white rounded-2xl shadow-lg p-8 w-full max-w-lg">
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-xl font-bold">문서 업로드</h1>
-          <button onClick={() => router.push("/chat")} className="text-sm text-blue-600 hover:underline">← 채팅으로</button>
+          <div className="flex gap-3">
+            <button onClick={() => router.push("/proposals")} className="text-sm text-blue-600 hover:underline">제안서 초안</button>
+            <button onClick={() => router.push("/chat")} className="text-sm text-blue-600 hover:underline">← 채팅으로</button>
+          </div>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">

@@ -29,22 +29,33 @@ export async function chatStream(
   if (!res.ok) throw new Error("요청 실패");
   const reader = res.body!.getReader();
   const decoder = new TextDecoder();
+  let buffer = "";
+  const processEvent = (event: string) => {
+    const line = event.split("\n").find((item) => item.startsWith("data:"));
+    if (!line) return false;
+    const payload = line.slice(5).trim();
+    if (payload === "[DONE]") {
+      onDone();
+      return true;
+    }
+    const data = JSON.parse(payload);
+    if (data.sources) onSource(data.sources);
+    if (data.token) onToken(data.token);
+    return false;
+  };
 
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
-    const lines = decoder.decode(value).split("\n");
-    for (const line of lines) {
-      if (!line.startsWith("data:")) continue;
-      const payload = line.slice(5).trim();
-      if (payload === "[DONE]") { onDone(); return; }
-      try {
-        const data = JSON.parse(payload);
-        if (data.sources) onSource(data.sources);
-        if (data.token) onToken(data.token);
-      } catch {}
+    buffer += decoder.decode(value, { stream: true });
+    const events = buffer.split("\n\n");
+    buffer = events.pop() ?? "";
+
+    for (const event of events) {
+      if (processEvent(event)) return;
     }
   }
+  if (buffer.trim() && processEvent(buffer)) return;
   onDone();
 }
 
@@ -58,9 +69,69 @@ export async function ingestDocument(formData: FormData, token: string) {
   return res.json();
 }
 
+export async function draftProposal(request: ProposalDraftRequest, token: string) {
+  const res = await fetch(`${API_BASE}/proposals/draft`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(request),
+  });
+
+  if (!res.ok) {
+    const message = await res.text().catch(() => "");
+    throw new Error(message || "제안서 초안 생성 실패");
+  }
+
+  return res.json() as Promise<ProposalDraftResponse>;
+}
+
 export interface Source {
   file: string;
   page: number;
   section: string;
-  score: number;
+  score: number | null;
+  point_id?: string;
+  retrieval_score?: number | null;
+  rerank_score?: number | null;
+  score_source?: ScoreSource;
+  department?: string | null;
+}
+
+export type ScoreSource = "retrieval" | "rerank" | "unavailable" | string;
+
+export interface ProposalDraftRequest {
+  scenario_id?: string | null;
+  query: string;
+  department?: string | null;
+  top_k?: number;
+  top_n?: number;
+}
+
+export interface ProposalSource extends Source {
+  point_id: string;
+  score_source: ScoreSource;
+}
+
+export interface ProposalVariant {
+  variant_id: string;
+  title: string;
+  strategy: string;
+  draft_markdown: string;
+  sources: ProposalSource[];
+  warnings: string[];
+  quality_summary?: string | null;
+}
+
+export interface ProposalDraftResponse {
+  request_id: string;
+  found: boolean;
+  status: "ok" | "no_results" | "partial" | "error" | string;
+  scenario_id?: string | null;
+  department_scope?: string | null;
+  variants: ProposalVariant[];
+  shared_sources: ProposalSource[];
+  warnings: string[];
+  no_results_message?: string | null;
 }

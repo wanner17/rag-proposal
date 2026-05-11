@@ -71,6 +71,17 @@ async def index_chunks(chunks: list[dict]):
     await client.upsert(collection_name=settings.QDRANT_COLLECTION, points=points)
 
 
+def _point_to_chunk(point) -> dict:
+    payload = dict(point.payload or {})
+    point_id = getattr(point, "id", None)
+    retrieval_score = getattr(point, "score", None)
+    payload["point_id"] = str(point_id) if point_id is not None else payload.get("chunk_id", "")
+    payload["retrieval_score"] = retrieval_score
+    payload.setdefault("score", retrieval_score)
+    payload["score_source"] = "retrieval"
+    return payload
+
+
 async def hybrid_search(query: str, department: str | None, top_k: int = 20) -> list[dict]:
     client = get_client()
     dense_vec = await get_embedding(query)
@@ -93,21 +104,37 @@ async def hybrid_search(query: str, department: str | None, top_k: int = 20) -> 
         limit=top_k,
         with_payload=True,
     )
-    return [r.payload for r in results.points]
+    return [_point_to_chunk(r) for r in results.points]
 
 
-async def retrieve(query: str, department: str | None, top_n: int = 5) -> list[dict]:
-    candidates = await hybrid_search(query, department, top_k=20)
-    if not candidates:
-        return []
-    passages = [c["text"] for c in candidates]
-    reranked = await rerank(query, passages, top_n=top_n)
-
-    # reranker 결과에 원본 메타데이터 병합
+def merge_rerank_scores(candidates: list[dict], reranked: list[dict]) -> list[dict]:
+    """Merge reranker output into candidates without losing retrieval metadata."""
     result = []
     for r in reranked:
         orig_idx = r["original_index"]
         chunk = dict(candidates[orig_idx])
-        chunk["score"] = r["score"]
+        rerank_score = r.get("score")
+        chunk["rerank_score"] = rerank_score
+        chunk["score"] = rerank_score
+        chunk["score_source"] = "rerank"
         result.append(chunk)
     return result
+
+
+async def retrieve_with_metadata(
+    query: str,
+    department: str | None,
+    top_k: int = 20,
+    top_n: int = 5,
+) -> tuple[list[dict], list[dict]]:
+    candidates = await hybrid_search(query, department, top_k=top_k)
+    if not candidates:
+        return [], []
+    passages = [c["text"] for c in candidates]
+    reranked = await rerank(query, passages, top_n=top_n)
+    return candidates, merge_rerank_scores(candidates, reranked)
+
+
+async def retrieve(query: str, department: str | None, top_n: int = 5) -> list[dict]:
+    _, reranked = await retrieve_with_metadata(query, department, top_k=20, top_n=top_n)
+    return reranked

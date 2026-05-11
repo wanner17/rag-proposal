@@ -151,16 +151,16 @@
       "type": "file"
     },
     {
+      "path": "",
+      "accessCount": 6,
+      "lastAccessed": 1778459205868,
+      "type": "directory"
+    },
+    {
       "path": "frontend\\next.config.ts",
       "accessCount": 5,
       "lastAccessed": 1778388052340,
       "type": "file"
-    },
-    {
-      "path": "",
-      "accessCount": 5,
-      "lastAccessed": 1778457997535,
-      "type": "directory"
     },
     {
       "path": "backend\\app\\api\\ingest.py",
@@ -193,6 +193,12 @@
       "type": "file"
     },
     {
+      "path": "docker-compose.yml",
+      "accessCount": 3,
+      "lastAccessed": 1778459208446,
+      "type": "file"
+    },
+    {
       "path": "frontend\\app\\page.tsx",
       "accessCount": 2,
       "lastAccessed": 1778304992694,
@@ -208,12 +214,6 @@
       "path": "scripts\\install_llamacpp.sh",
       "accessCount": 2,
       "lastAccessed": 1778317742603,
-      "type": "file"
-    },
-    {
-      "path": "docker-compose.yml",
-      "accessCount": 2,
-      "lastAccessed": 1778387268456,
       "type": "file"
     },
     {

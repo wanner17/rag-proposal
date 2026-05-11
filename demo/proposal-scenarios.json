@@ -1,0 +1,104 @@
+{
+  "version": 1,
+  "purpose": "Curated demo scenarios for the quality-comparison proposal draft MVP.",
+  "corpus_prerequisite": "Fresh checkouts do not include real proposal documents. Upload sanitized real proposal files or create local synthetic files matching docs/proposal-demo.md before running these scenarios.",
+  "default_top_k": 20,
+  "default_top_n": 5,
+  "scenarios": [
+    {
+      "scenario_id": "demo-public-si-modernization",
+      "title": "Public SI modernization proposal",
+      "department": "공공사업팀",
+      "query": "교육청 노후 업무시스템 고도화 사업 제안서의 추진전략, 구현방안, 일정/리스크 섹션 초안을 작성해줘.",
+      "top_k": 20,
+      "top_n": 5,
+      "expected_corpus_files": [
+        "public-si-modernization.md",
+        "public-cloud-migration.md"
+      ],
+      "expected_response_checks": [
+        "response includes draft content, cited sources, variants/config labels, warnings, and quality summary",
+        "draft content includes proposal-style sections",
+        "sources cite file/page/section metadata",
+        "variant labels distinguish generation or rerank configuration",
+        "warnings call out missing budget/staffing/client-specific constraints when absent",
+        "quality summary states whether compared variants share the same candidate identity"
+      ]
+    },
+    {
+      "scenario_id": "demo-learning-platform",
+      "title": "LMS platform build proposal",
+      "department": "공공사업팀",
+      "query": "공공기관 이러닝 플랫폼 구축 제안서의 사업 이해, 제안 접근방안, 운영 지원 방안을 초안으로 작성해줘.",
+      "top_k": 20,
+      "top_n": 5,
+      "expected_corpus_files": [
+        "learning-platform.md",
+        "public-si-modernization.md"
+      ],
+      "expected_response_checks": [
+        "response includes draft content, cited sources, variants/config labels, warnings, and quality summary",
+        "draft covers business understanding, approach, implementation, operation, risks, and evidence gaps",
+        "sources include LMS or public SI evidence",
+        "warnings mention unverified SLA/license/integration constraints when absent",
+        "quality summary identifies strongest evidence sections"
+      ]
+    },
+    {
+      "scenario_id": "demo-smart-factory-ai",
+      "title": "Smart factory AI predictive maintenance proposal",
+      "department": "제조DX팀",
+      "query": "제조 설비 예측정비 AI PoC 제안서 초안을 작성하고 데이터 수집, 모델 운영, 현장 적용 리스크를 정리해줘.",
+      "top_k": 20,
+      "top_n": 5,
+      "expected_corpus_files": [
+        "smart-factory-ai.md"
+      ],
+      "expected_response_checks": [
+        "response includes draft content, cited sources, variants/config labels, warnings, and quality summary",
+        "admin or manufacturing-scoped user gets manufacturing evidence",
+        "public-team non-admin user cannot widen scope to 제조DX팀",
+        "sources preserve retrieval_score/rerank_score semantics",
+        "quality summary explains any no-results caused by department scope"
+      ]
+    },
+    {
+      "scenario_id": "demo-public-cloud-migration",
+      "title": "Public cloud migration proposal",
+      "department": "공공사업팀",
+      "query": "공공기관 클라우드 전환 사업 제안서의 전환 전략, 보안/DR, 비용 최적화, 단계별 이행계획 초안을 작성해줘.",
+      "top_k": 20,
+      "top_n": 5,
+      "expected_corpus_files": [
+        "public-cloud-migration.md",
+        "public-si-modernization.md"
+      ],
+      "expected_response_checks": [
+        "response includes draft content, cited sources, variants/config labels, warnings, and quality summary",
+        "draft covers migration waves, security/DR, cost, schedule, and risks",
+        "sources include cloud migration evidence",
+        "warnings call out unverified provider/system-inventory/regulatory details",
+        "quality summary does not rank raw scores from incompatible candidate sets"
+      ]
+    },
+    {
+      "scenario_id": "demo-healthcare-scope-check",
+      "title": "Healthcare data platform no-results and scope check",
+      "department": "헬스케어팀",
+      "query": "병원 데이터 플랫폼 제안서의 개인정보 보호, 데이터 거버넌스, 분석 포털 구축 방안을 초안으로 작성해줘.",
+      "top_k": 20,
+      "top_n": 5,
+      "expected_corpus_files": [
+        "healthcare-data-platform.md"
+      ],
+      "expected_response_checks": [
+        "response includes draft content, cited sources, variants/config labels, warnings, and quality summary",
+        "admin or healthcare-scoped user can retrieve healthcare evidence",
+        "public-team non-admin user receives no widened healthcare scope",
+        "no-results response uses the deterministic message when no permitted evidence exists",
+        "no-results response has empty sources and no hallucinated draft",
+        "quality summary explains that no draft was generated without evidence"
+      ]
+    }
+  ]
+}

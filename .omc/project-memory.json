@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
-  "lastScanned": 1778304678974,
-  "projectRoot": "c:\\dev\\python_rag_ex",
+  "lastScanned": 1778457680785,
+  "projectRoot": "d:\\dev\\rag-proposal",
   "techStack": {
     "languages": [],
     "frameworks": [],
@@ -38,7 +38,7 @@
       "path": "backend",
       "purpose": null,
       "fileCount": 2,
-      "lastAccessed": 1778304678951,
+      "lastAccessed": 1778457680747,
       "keyFiles": [
         "Dockerfile",
         "requirements.txt"
@@ -48,7 +48,7 @@
       "path": "embedding_service",
       "purpose": null,
       "fileCount": 1,
-      "lastAccessed": 1778304678952,
+      "lastAccessed": 1778457680747,
       "keyFiles": [
         "app.py"
       ]
@@ -56,19 +56,21 @@
     "frontend": {
       "path": "frontend",
       "purpose": null,
-      "fileCount": 3,
-      "lastAccessed": 1778304678952,
+      "fileCount": 8,
+      "lastAccessed": 1778457680748,
       "keyFiles": [
         "Dockerfile",
         "next.config.ts",
-        "package-lock.json"
+        "package-lock.json",
+        "package.json",
+        "postcss.config.mjs"
       ]
     },
     "nginx": {
       "path": "nginx",
       "purpose": null,
       "fileCount": 1,
-      "lastAccessed": 1778304678952,
+      "lastAccessed": 1778457680749,
       "keyFiles": [
         "nginx.conf"
       ]
@@ -77,7 +79,7 @@
       "path": "reranker_service",
       "purpose": null,
       "fileCount": 1,
-      "lastAccessed": 1778304678953,
+      "lastAccessed": 1778457680749,
       "keyFiles": [
         "app.py"
       ]
@@ -85,28 +87,21 @@
     "scripts": {
       "path": "scripts",
       "purpose": "Build/utility scripts",
-      "fileCount": 3,
-      "lastAccessed": 1778304678953,
+      "fileCount": 5,
+      "lastAccessed": 1778457680750,
       "keyFiles": [
+        "install_llamacpp.sh",
         "install_vllm.sh",
+        "start_all.sh",
         "start_services.sh",
         "stop_services.sh"
-      ]
-    },
-    "venv": {
-      "path": "venv",
-      "purpose": null,
-      "fileCount": 2,
-      "lastAccessed": 1778304678954,
-      "keyFiles": [
-        "pyvenv.cfg"
       ]
     },
     "backend\\app": {
       "path": "backend\\app",
       "purpose": "Application code",
       "fileCount": 2,
-      "lastAccessed": 1778304678954,
+      "lastAccessed": 1778457680751,
       "keyFiles": [
         "main.py",
         "__init__.py"
@@ -115,9 +110,10 @@
     "frontend\\app": {
       "path": "frontend\\app",
       "purpose": "Application code",
-      "fileCount": 2,
-      "lastAccessed": 1778304678955,
+      "fileCount": 3,
+      "lastAccessed": 1778457680752,
       "keyFiles": [
+        "globals.css",
         "layout.tsx",
         "page.tsx"
       ]
@@ -126,7 +122,7 @@
       "path": "frontend\\components",
       "purpose": "UI components",
       "fileCount": 1,
-      "lastAccessed": 1778304678955,
+      "lastAccessed": 1778457680753,
       "keyFiles": [
         "SourceCard.tsx"
       ]
@@ -135,27 +131,9 @@
       "path": "frontend\\lib",
       "purpose": "Library code",
       "fileCount": 1,
-      "lastAccessed": 1778304678956,
+      "lastAccessed": 1778457680753,
       "keyFiles": [
         "api.ts"
-      ]
-    },
-    "venv\\Lib": {
-      "path": "venv\\Lib",
-      "purpose": "Library code",
-      "fileCount": 0,
-      "lastAccessed": 1778304678957,
-      "keyFiles": []
-    },
-    "venv\\Scripts": {
-      "path": "venv\\Scripts",
-      "purpose": "Build/utility scripts",
-      "fileCount": 35,
-      "lastAccessed": 1778304678957,
-      "keyFiles": [
-        "activate",
-        "activate.bat",
-        "activate.fish"
       ]
     }
   },
@@ -179,6 +157,18 @@
       "type": "file"
     },
     {
+      "path": "",
+      "accessCount": 5,
+      "lastAccessed": 1778457997535,
+      "type": "directory"
+    },
+    {
+      "path": "backend\\app\\api\\ingest.py",
+      "accessCount": 4,
+      "lastAccessed": 1778458064513,
+      "type": "file"
+    },
+    {
       "path": "frontend\\app\\login\\page.tsx",
       "accessCount": 3,
       "lastAccessed": 1778305002402,
@@ -188,6 +178,18 @@
       "path": "backend\\app\\core\\config.py",
       "accessCount": 3,
       "lastAccessed": 1778319270393,
+      "type": "file"
+    },
+    {
+      "path": "frontend\\app\\upload\\page.tsx",
+      "accessCount": 3,
+      "lastAccessed": 1778458040493,
+      "type": "file"
+    },
+    {
+      "path": "backend\\app\\services\\document_processor.py",
+      "accessCount": 3,
+      "lastAccessed": 1778458055998,
       "type": "file"
     },
     {
@@ -267,6 +269,18 @@
       "accessCount": 1,
       "lastAccessed": 1778386775632,
       "type": "file"
+    },
+    {
+      "path": "backend",
+      "accessCount": 1,
+      "lastAccessed": 1778457997789,
+      "type": "directory"
+    },
+    {
+      "path": "frontend",
+      "accessCount": 1,
+      "lastAccessed": 1778457997969,
+      "type": "directory"
     }
   ],
   "userDirectives": []

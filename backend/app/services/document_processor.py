@@ -41,17 +41,23 @@ def _hwp_to_pdf(hwp_path: str) -> str:
     return f"{output_dir}/{Path(hwp_path).stem}.pdf"
 
 
+def _extract_text_pages(path: str) -> list[dict]:
+    text = Path(path).read_text(encoding="utf-8", errors="replace")
+    return [{"page": 1, "text": text}]
+
+
 def extract_pages(file_path: str) -> list[dict]:
     ext = Path(file_path).suffix.lower()
     if ext == ".pdf":
         return _extract_pdf_pages(file_path)
     elif ext == ".docx":
         return _extract_docx_pages(file_path)
-    elif ext == ".hwp":
+    elif ext in {".txt", ".md", ".rst", ".csv"}:
+        return _extract_text_pages(file_path)
+    else:
+        # LibreOffice fallback for .hwp, .hwpx, .pptx, .xlsx, .odt, and others
         pdf_path = _hwp_to_pdf(file_path)
         return _extract_pdf_pages(pdf_path)
-    else:
-        raise ValueError(f"지원하지 않는 파일 형식: {ext}")
 
 
 def semantic_chunk(pages: list[dict], metadata: DocumentMetadata) -> list[ChunkPayload]:

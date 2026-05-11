@@ -40,10 +40,10 @@ export default function UploadPage() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center">
-            <input type="file" accept=".pdf,.docx,.hwp" onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+            <input type="file" onChange={(e) => setFile(e.target.files?.[0] ?? null)}
               className="hidden" id="file-input" />
             <label htmlFor="file-input" className="cursor-pointer text-blue-600 hover:underline">
-              {file ? file.name : "PDF / DOCX / HWP 파일 선택"}
+              {file ? file.name : "파일 선택"}
             </label>
           </div>
 

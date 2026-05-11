@@ -22,11 +22,6 @@ async def ingest(
     department: str = Form(...),
     user: UserInfo = Depends(get_current_user),
 ):
-    allowed_exts = {".pdf", ".docx", ".hwp"}
-    ext = os.path.splitext(file.filename)[1].lower()
-    if ext not in allowed_exts:
-        raise HTTPException(status_code=400, detail=f"지원하지 않는 파일 형식: {ext}")
-
     # 파일 저장
     save_path = f"{UPLOAD_DIR}/{file.filename}"
     os.makedirs(UPLOAD_DIR, exist_ok=True)

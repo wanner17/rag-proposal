@@ -98,8 +98,8 @@ export default function ProposalsPage() {
             </div>
 
             <div className="grid grid-cols-2 gap-3">
-              <NumberField label="검색 후보 top_k" value={topK} min={1} max={50} onChange={setTopK} />
-              <NumberField label="초안 근거 top_n" value={topN} min={1} max={10} onChange={setTopN} />
+              <NumberField label="넓게 찾을 문서 조각 수" value={topK} min={1} max={50} onChange={setTopK} />
+              <NumberField label="초안에 사용할 근거 수" value={topN} min={1} max={10} onChange={setTopN} />
             </div>
 
             <button

@@ -112,3 +112,83 @@ def test_admin_document_search_uses_all_departments(monkeypatch):
     assert response.status_code == 200
     assert captured["list_department"] is None
     assert captured["search_department"] is None
+
+
+def test_delete_document_removes_permitted_index_and_source_file(monkeypatch, tmp_path):
+    captured = {}
+    source = tmp_path / "sample.pdf"
+    source.write_text("source", encoding="utf-8")
+
+    async def fake_list_indexed_chunks(department):
+        captured["list_department"] = department
+        return [_chunk()]
+
+    async def fake_delete_document_chunks(file_name, department):
+        captured["delete_file"] = file_name
+        captured["delete_department"] = department
+        return True
+
+    monkeypatch.setattr("app.api.documents.UPLOAD_DIR", tmp_path)
+    monkeypatch.setattr("app.api.documents.list_indexed_chunks", fake_list_indexed_chunks)
+    monkeypatch.setattr("app.api.documents.delete_document_chunks", fake_delete_document_chunks)
+
+    client = TestClient(app)
+    response = client.delete("/api/documents/sample.pdf", headers=_headers())
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["deleted"] is True
+    assert data["indexed_chunks_deleted"] is True
+    assert data["source_file_deleted"] is True
+    assert not source.exists()
+    assert captured == {
+        "list_department": "공공사업팀",
+        "delete_file": "sample.pdf",
+        "delete_department": "공공사업팀",
+    }
+
+
+def test_delete_document_blocks_out_of_scope_file(monkeypatch):
+    async def fake_list_indexed_chunks(department):
+        return []
+
+    async def fail_delete(*args, **kwargs):
+        raise AssertionError("out-of-scope delete must not touch qdrant")
+
+    monkeypatch.setattr("app.api.documents.list_indexed_chunks", fake_list_indexed_chunks)
+    monkeypatch.setattr("app.api.documents.delete_document_chunks", fail_delete)
+
+    client = TestClient(app)
+    response = client.delete("/api/documents/other.pdf", headers=_headers())
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["deleted"] is False
+    assert data["indexed_chunks_deleted"] is False
+
+
+def test_admin_delete_uses_all_department_scope(monkeypatch, tmp_path):
+    captured = {}
+
+    async def fake_list_indexed_chunks(department):
+        captured["list_department"] = department
+        return [_chunk(file="admin.pdf", department="제조DX팀")]
+
+    async def fake_delete_document_chunks(file_name, department):
+        captured["delete_department"] = department
+        return True
+
+    monkeypatch.setattr("app.api.documents.UPLOAD_DIR", tmp_path)
+    monkeypatch.setattr("app.api.documents.list_indexed_chunks", fake_list_indexed_chunks)
+    monkeypatch.setattr("app.api.documents.delete_document_chunks", fake_delete_document_chunks)
+
+    client = TestClient(app)
+    response = client.delete(
+        "/api/documents/admin.pdf",
+        headers=_headers("admin", "전체", True),
+    )
+
+    assert response.status_code == 200
+    assert response.json()["deleted"] is True
+    assert captured["list_department"] is None
+    assert captured["delete_department"] is None

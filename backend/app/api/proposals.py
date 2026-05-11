@@ -120,7 +120,7 @@ async def draft_proposal(req: ProposalDraftRequest, user: UserInfo = Depends(get
     sources = [_proposal_source(chunk) for chunk in reranked]
     warnings = []
     if len(reranked) < req.top_n:
-        warnings.append(f"요청한 top_n={req.top_n}보다 적은 {len(reranked)}개 근거만 발견되었습니다.")
+        warnings.append(f"요청한 근거 수 {req.top_n}개보다 적은 {len(reranked)}개 근거만 발견되었습니다.")
     status = "ok"
 
     try:

@@ -1,5 +1,5 @@
 #!/bin/bash
-# 호스트에서 GPU 서비스 실행 (vLLM, Embedding, Reranker)
+# 호스트에서 GPU 서비스 실행 (llama.cpp LLM, Embedding, Reranker)
 # 서버 재시작 후 또는 최초 실행 시 사용
 
 set -e

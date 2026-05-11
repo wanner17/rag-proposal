@@ -1,15 +1,18 @@
+from pathlib import Path
 from fastapi import APIRouter, Depends
 from app.core.auth import get_current_user, resolve_department_scope
 from app.models.schemas import (
+    DocumentDeleteResponse,
     DocumentSearchHit,
     DocumentSearchRequest,
     DocumentSearchResponse,
     DocumentSummary,
     UserInfo,
 )
-from app.services.retrieval import hybrid_search, list_indexed_chunks
+from app.services.retrieval import delete_document_chunks, hybrid_search, list_indexed_chunks
 
 router = APIRouter(prefix="/documents", tags=["documents"])
+UPLOAD_DIR = Path("/app/documents")
 
 
 def _summarize_documents(chunks: list[dict]) -> list[DocumentSummary]:
@@ -78,3 +81,38 @@ async def search_documents(req: DocumentSearchRequest, user: UserInfo = Depends(
     hits = [_search_hit(chunk) for chunk in await hybrid_search(req.query, department_scope, top_k=req.top_k)]
     documents = _summarize_documents(all_chunks)
     return DocumentSearchResponse(found=bool(hits), documents=documents, hits=hits)
+
+
+@router.delete("/{file_name}", response_model=DocumentDeleteResponse)
+async def delete_document(file_name: str, user: UserInfo = Depends(get_current_user)):
+    department_scope = resolve_department_scope(user, None)
+    chunks = await list_indexed_chunks(department_scope)
+    matching_chunks = [chunk for chunk in chunks if chunk.get("file") == file_name]
+
+    if not matching_chunks:
+        return DocumentDeleteResponse(
+            deleted=False,
+            file=file_name,
+            indexed_chunks_deleted=False,
+            source_file_deleted=False,
+            message="삭제할 수 있는 등록 문서를 찾지 못했습니다.",
+        )
+
+    indexed_deleted = await delete_document_chunks(file_name, department_scope)
+    source_path = (UPLOAD_DIR / file_name).resolve()
+    source_deleted = False
+    try:
+        source_path.relative_to(UPLOAD_DIR.resolve())
+        if source_path.is_file():
+            source_path.unlink()
+            source_deleted = True
+    except ValueError:
+        source_deleted = False
+
+    return DocumentDeleteResponse(
+        deleted=True,
+        file=file_name,
+        indexed_chunks_deleted=indexed_deleted,
+        source_file_deleted=source_deleted,
+        message="등록 문서를 삭제했습니다." if source_deleted else "검색 인덱스를 삭제했습니다. 원본 파일은 이미 없거나 삭제할 수 없습니다.",
+    )

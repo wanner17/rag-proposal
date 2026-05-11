@@ -135,3 +135,11 @@ class DocumentSearchResponse(BaseModel):
     found: bool
     documents: list[DocumentSummary]
     hits: list[DocumentSearchHit]
+
+
+class DocumentDeleteResponse(BaseModel):
+    deleted: bool
+    file: str
+    indexed_chunks_deleted: bool
+    source_file_deleted: bool
+    message: str

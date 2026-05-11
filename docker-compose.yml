@@ -22,8 +22,8 @@ services:
     restart: unless-stopped
     env_file: .env
     environment:
-      # vLLM/Embedding/Reranker는 호스트에서 실행 → host.docker.internal로 접근
-      VLLM_HOST: http://host.docker.internal:8080/v1
+      # llama.cpp(OpenAI 호환 LLM)/Embedding/Reranker는 호스트에서 실행 → host.docker.internal로 접근
+      LLM_HOST: http://host.docker.internal:8080/v1
       EMBEDDING_HOST: http://host.docker.internal:8001
       RERANKER_HOST: http://host.docker.internal:8002
       QDRANT_HOST: http://qdrant:6333

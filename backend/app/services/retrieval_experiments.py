@@ -49,6 +49,6 @@ def quality_summary(left: CandidateIdentity, right: CandidateIdentity, *, rerank
             "원점수를 직접 순위 비교하지 말고 출처/설정 라벨과 함께 참고하세요."
         )
     return (
-        "not comparable: query, filter, top_k, index/chunking/search 설정 중 하나 이상이 달라 "
+        "not comparable: query, filter, candidate count, index/chunking/search 설정 중 하나 이상이 달라 "
         "원점수를 직접 비교할 수 없습니다."
     )

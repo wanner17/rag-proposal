@@ -108,6 +108,15 @@ export async function searchDocuments(request: DocumentSearchRequest, token: str
   return res.json() as Promise<DocumentSearchResponse>;
 }
 
+export async function deleteDocument(file: string, token: string) {
+  const res = await fetch(`${API_BASE}/documents/${encodeURIComponent(file)}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error("문서 삭제 실패");
+  return res.json() as Promise<DocumentDeleteResponse>;
+}
+
 export interface Source {
   file: string;
   page: number;
@@ -189,4 +198,12 @@ export interface DocumentSearchResponse {
   found: boolean;
   documents: DocumentSummary[];
   hits: DocumentSearchHit[];
+}
+
+export interface DocumentDeleteResponse {
+  deleted: boolean;
+  file: string;
+  indexed_chunks_deleted: boolean;
+  source_file_deleted: boolean;
+  message: string;
 }

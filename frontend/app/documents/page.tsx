@@ -6,6 +6,7 @@ import {
   DocumentSearchHit,
   DocumentSearchResponse,
   DocumentSummary,
+  deleteDocument,
   listDocuments,
   searchDocuments,
 } from "@/lib/api";
@@ -19,6 +20,7 @@ export default function DocumentsPage() {
   const [status, setStatus] = useState<Status>("loading");
   const [data, setData] = useState<DocumentSearchResponse>({ found: false, documents: [], hits: [] });
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -55,6 +57,32 @@ export default function DocumentsPage() {
     }
   }
 
+  async function refreshDocuments() {
+    const token = localStorage.getItem("token") ?? "";
+    const response = await listDocuments(token);
+    setData(response);
+  }
+
+  async function handleDelete(file: string) {
+    const confirmed = window.confirm(
+      `"${file}" 문서를 삭제할까요?\n검색 인덱스와 업로드 원본 파일이 함께 제거됩니다.`
+    );
+    if (!confirmed) return;
+
+    setError("");
+    setNotice("");
+    try {
+      const token = localStorage.getItem("token") ?? "";
+      const response = await deleteDocument(file, token);
+      setNotice(response.message);
+      await refreshDocuments();
+      setQuery("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "문서 삭제 중 오류가 발생했습니다.");
+      setStatus("error");
+    }
+  }
+
   function handleLogout() {
     localStorage.removeItem("token");
     router.push("/login");
@@ -84,7 +112,7 @@ export default function DocumentsPage() {
             onChange={(e) => setQuery(e.target.value)}
           />
           <label className="flex items-center gap-2 text-sm text-gray-600">
-            top_k
+            검색 결과 수
             <input
               type="number"
               min={1}
@@ -107,6 +135,11 @@ export default function DocumentsPage() {
 
       {status === "loading" && <EmptyState title="문서 목록을 불러오는 중입니다..." />}
       {status === "error" && <ErrorState message={error} />}
+      {notice && (
+        <section className="bg-green-50 border border-green-200 rounded-2xl shadow-sm p-4 mb-6 text-sm text-green-800">
+          {notice}
+        </section>
+      )}
 
       {status !== "loading" && status !== "error" && (
         <div className="grid gap-6 lg:grid-cols-[360px_1fr]">
@@ -117,7 +150,7 @@ export default function DocumentsPage() {
             ) : (
               <div className="space-y-3">
                 {data.documents.map((doc) => (
-                  <DocumentCard key={doc.file} document={doc} />
+                  <DocumentCard key={doc.file} document={doc} onDelete={handleDelete} />
                 ))}
               </div>
             )}
@@ -137,10 +170,25 @@ export default function DocumentsPage() {
   );
 }
 
-function DocumentCard({ document }: { document: DocumentSummary }) {
+function DocumentCard({
+  document,
+  onDelete,
+}: {
+  document: DocumentSummary;
+  onDelete: (file: string) => void;
+}) {
   return (
     <article className="border rounded-xl p-3 text-sm">
-      <h3 className="font-medium text-blue-800 break-all">{document.file}</h3>
+      <div className="flex items-start justify-between gap-3">
+        <h3 className="font-medium text-blue-800 break-all">{document.file}</h3>
+        <button
+          type="button"
+          onClick={() => onDelete(document.file)}
+          className="shrink-0 rounded-lg border border-red-200 px-2 py-1 text-xs text-red-600 hover:bg-red-50"
+        >
+          제거
+        </button>
+      </div>
       <p className="text-xs text-gray-500 mt-1">
         {document.department || "부서 없음"} · {document.year || "연도 없음"} · {document.chunk_count} chunks
       </p>

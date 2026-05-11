@@ -2,7 +2,7 @@ from qdrant_client import AsyncQdrantClient
 from qdrant_client.models import (
     Distance, VectorParams, SparseVectorParams, SparseIndexParams,
     PointStruct, SparseVector, Filter, FieldCondition, MatchValue,
-    Prefetch, FusionQuery, Fusion,
+    Prefetch, FusionQuery, Fusion, FilterSelector,
 )
 from kiwipiepy import Kiwi
 from app.core.config import settings
@@ -79,6 +79,13 @@ def _department_filter(department: str | None) -> Filter | None:
     )
 
 
+def _document_filter(file_name: str, department: str | None) -> Filter:
+    must = [FieldCondition(key="file", match=MatchValue(value=file_name))]
+    if department:
+        must.append(FieldCondition(key="department", match=MatchValue(value=department)))
+    return Filter(must=must)
+
+
 def _point_to_chunk(point) -> dict:
     payload = dict(point.payload or {})
     point_id = getattr(point, "id", None)
@@ -121,6 +128,17 @@ async def list_indexed_chunks(department: str | None, limit: int = 500) -> list[
         with_vectors=False,
     )
     return [_point_to_chunk(point) for point in points]
+
+
+async def delete_document_chunks(file_name: str, department: str | None) -> bool:
+    client = get_client()
+    selector = FilterSelector(filter=_document_filter(file_name, department))
+    await client.delete(
+        collection_name=settings.QDRANT_COLLECTION,
+        points_selector=selector,
+        wait=True,
+    )
+    return True
 
 
 def merge_rerank_scores(candidates: list[dict], reranked: list[dict]) -> list[dict]:

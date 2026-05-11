@@ -1,9 +1,10 @@
+from pydantic import Field
 from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    VLLM_HOST: str = "http://localhost:8080/v1"
-    VLLM_MODEL: str = "Qwen3-8B-Q4_K_M.gguf"
+    LLM_HOST: str = Field(default="http://localhost:8080/v1", alias="VLLM_HOST")
+    LLM_MODEL: str = Field(default="Qwen3-8B-Q4_K_M.gguf", alias="VLLM_MODEL")
     EMBEDDING_HOST: str = "http://localhost:8001"
     RERANKER_HOST: str = "http://localhost:8002"
     QDRANT_HOST: str = "http://qdrant:6333"
@@ -15,6 +16,15 @@ class Settings(BaseSettings):
 
     class Config:
         env_file = ".env"
+        populate_by_name = True
+
+    @property
+    def VLLM_HOST(self) -> str:
+        return self.LLM_HOST
+
+    @property
+    def VLLM_MODEL(self) -> str:
+        return self.LLM_MODEL
 
 
 settings = Settings()

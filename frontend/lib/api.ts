@@ -7,6 +7,13 @@ export class UnauthorizedError extends Error {
   }
 }
 
+export class AgentUnavailableError extends Error {
+  constructor(message = "Agent 모드를 사용할 수 없습니다. 설정 또는 백엔드 상태를 확인해 주세요.") {
+    super(message);
+    this.name = "AgentUnavailableError";
+  }
+}
+
 export async function login(username: string, password: string) {
   const res = await fetch(`${API_BASE}/auth/login`, {
     method: "POST",
@@ -67,6 +74,22 @@ export async function chatStream(
   onDone();
 }
 
+export async function agentQuery(query: string, token: string) {
+  const res = await fetch(`${API_BASE}/agent/query`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ query }),
+  });
+
+  if (res.status === 401) throw new UnauthorizedError();
+  if (res.status === 404 || res.status === 503) throw new AgentUnavailableError();
+  if (!res.ok) throw new Error("요청 실패");
+  return res.json() as Promise<AgentQueryResponse>;
+}
+
 export async function ingestDocument(formData: FormData, token: string) {
   const res = await fetch(`${API_BASE}/ingest`, {
     method: "POST",
@@ -120,6 +143,33 @@ export interface Source {
 }
 
 export type ScoreSource = "retrieval" | "rerank" | "unavailable" | string;
+
+export interface AgentWorkflowStep {
+  name: string;
+  status: string;
+  duration_ms?: number | null;
+  detail: Record<string, unknown>;
+}
+
+export interface AgentWorkflowMetadata {
+  framework: string;
+  graph_version: string;
+  graph_run_id: string;
+  project_id: string;
+  project_slug: string;
+  collection_name: string;
+  selected_pass?: string | null;
+  retry_triggered: boolean;
+  fallback_used: boolean;
+  steps: AgentWorkflowStep[];
+}
+
+export interface AgentQueryResponse {
+  answer: string;
+  sources: Source[];
+  found: boolean;
+  metadata: AgentWorkflowMetadata;
+}
 
 export {
   draftProposal,

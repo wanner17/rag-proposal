@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     )
     PROJECT_DB_PATH: str = "data/projects.sqlite3"
     RAG_ENABLED_PLUGINS: str = "proposal"
+    ENABLE_AGENT_ORCHESTRATION: bool = False
     SECRET_KEY: str = "change-me"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 480
     ALLOWED_ORIGINS: str = "http://localhost:3000"

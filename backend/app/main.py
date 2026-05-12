@@ -33,6 +33,10 @@ app.include_router(chat.router, prefix="/api")
 app.include_router(documents.router, prefix="/api")
 app.include_router(ingest.router, prefix="/api")
 app.include_router(projects.router, prefix="/api")
+if settings.ENABLE_AGENT_ORCHESTRATION:
+    from app.api import agent
+
+    app.include_router(agent.router, prefix="/api")
 register_plugin_routers(app, api_prefix="/api")
 
 

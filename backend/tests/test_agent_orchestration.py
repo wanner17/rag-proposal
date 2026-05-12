@@ -1,15 +1,19 @@
 import asyncio
+import builtins
 from uuid import uuid4
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app.api.agent import router as agent_router
 from app.core.auth import create_token
 from app.core.config import settings
 from app.main import app
+from app.models.project_schemas import ProjectCreateRequest, ProjectRagConfig
 from app.models.schemas import Source
 from app.services.agent_orchestration import workflow
 from app.services.agent_orchestration.types import AgentWorkflowResult, AgentWorkflowTraceStep
+from app.services.projects import create_project
 from app.services.retrieval_critic import CriticPass, CriticResult, assess_retrieval
 
 
@@ -129,6 +133,80 @@ def test_agent_query_endpoint_returns_metadata_contract(tmp_path, monkeypatch):
             "detail": {"selected_pass": "initial", "result_count": 1},
         }
     ]
+
+
+def test_agent_query_uses_project_rag_config_and_user_department_scope(tmp_path, monkeypatch):
+    from fastapi import FastAPI
+    import app.api.agent as agent_api
+
+    monkeypatch.setattr(settings, "PROJECT_DB_PATH", str(tmp_path / "projects.sqlite3"))
+    project = create_project(
+        ProjectCreateRequest(
+            slug="manual-qa",
+            name="매뉴얼 QA",
+            description="운영 매뉴얼 질의응답",
+            plugins=[],
+            rag_config=ProjectRagConfig(
+                collection_name="manual-docs",
+                top_k_default=17,
+                top_n_default=4,
+                prompt_profile="manual",
+                storage_namespace="manual-qa",
+            ),
+        )
+    )
+
+    async def fake_run_agent_query(workflow_input):
+        assert workflow_input.project_id == project.id
+        assert workflow_input.project_slug == "manual-qa"
+        assert workflow_input.collection_name == "manual-docs"
+        assert workflow_input.top_k == 17
+        assert workflow_input.top_n == 4
+        assert workflow_input.department == "공공사업팀"
+        return AgentWorkflowResult(
+            answer="프로젝트 답변",
+            sources=[],
+            found=False,
+            graph_run_id="run-project",
+        )
+
+    monkeypatch.setattr(agent_api, "run_agent_query", fake_run_agent_query)
+    test_app = FastAPI()
+    test_app.include_router(agent_router, prefix="/api")
+    client = TestClient(test_app)
+
+    response = client.post(
+        "/api/agent/query",
+        headers=_headers("user1", "공공사업팀", False),
+        json={
+            "query": "운영 매뉴얼",
+            "project_id": project.id,
+            "department": "다른부서",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["metadata"]["project_id"] == project.id
+    assert payload["metadata"]["project_slug"] == "manual-qa"
+    assert payload["metadata"]["collection_name"] == "manual-docs"
+
+
+def test_build_graph_reports_clear_error_when_langgraph_is_missing(monkeypatch):
+    original_import = builtins.__import__
+
+    def fake_import(name, *args, **kwargs):
+        if name == "langgraph.graph":
+            raise ImportError("No module named langgraph")
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", fake_import)
+
+    with pytest.raises(workflow.HTTPException) as exc_info:
+        workflow._build_graph()
+
+    assert exc_info.value.status_code == 503
+    assert "langgraph is not installed" in exc_info.value.detail
 
 
 def test_graph_nodes_return_no_results_without_generation(monkeypatch):

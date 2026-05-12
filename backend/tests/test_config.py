@@ -45,3 +45,19 @@ def test_qdrant_collection_default_is_documented_compatibility_value(monkeypatch
 
     assert DEFAULT_RAG_COLLECTION == "proposals"
     assert settings.QDRANT_COLLECTION == DEFAULT_RAG_COLLECTION
+
+
+def test_agent_orchestration_flag_defaults_off(monkeypatch):
+    monkeypatch.delenv("ENABLE_AGENT_ORCHESTRATION", raising=False)
+
+    settings = Settings(_env_file=None)
+
+    assert settings.ENABLE_AGENT_ORCHESTRATION is False
+
+
+def test_agent_orchestration_flag_reads_env(monkeypatch):
+    monkeypatch.setenv("ENABLE_AGENT_ORCHESTRATION", "true")
+
+    settings = Settings(_env_file=None)
+
+    assert settings.ENABLE_AGENT_ORCHESTRATION is True

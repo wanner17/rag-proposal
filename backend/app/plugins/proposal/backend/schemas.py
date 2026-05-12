@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 class ProposalDraftRequest(BaseModel):
     query: str | None = Field(default=None, max_length=2000)
     scenario_id: str | None = None
+    project_id: str | None = None
     department: str | None = None
     top_k: int = Field(default=20, ge=1, le=50)
     top_n: int = Field(default=5, ge=1, le=10)

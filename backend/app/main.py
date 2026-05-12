@@ -3,15 +3,17 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
-from app.api import auth, chat, documents, ingest
+from app.api import auth, chat, documents, ingest, projects
 from app.plugin_runtime import enabled_plugin_metadata, register_plugin_routers
 from app.services.retrieval import ensure_collection
+from app.services.projects import ensure_default_project
 
 logging.basicConfig(level=settings.LOG_LEVEL)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    ensure_default_project()
     await ensure_collection()
     yield
 
@@ -30,6 +32,7 @@ app.include_router(auth.router, prefix="/api")
 app.include_router(chat.router, prefix="/api")
 app.include_router(documents.router, prefix="/api")
 app.include_router(ingest.router, prefix="/api")
+app.include_router(projects.router, prefix="/api")
 register_plugin_routers(app, api_prefix="/api")
 
 

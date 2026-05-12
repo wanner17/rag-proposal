@@ -22,13 +22,14 @@ def get_client() -> AsyncQdrantClient:
     return _client
 
 
-async def ensure_collection():
+async def ensure_collection(collection_name: str | None = None):
     client = get_client()
+    target_collection = collection_name or settings.QDRANT_COLLECTION
     collections = await client.get_collections()
     names = [c.name for c in collections.collections]
-    if settings.QDRANT_COLLECTION not in names:
+    if target_collection not in names:
         await client.create_collection(
-            collection_name=settings.QDRANT_COLLECTION,
+            collection_name=target_collection,
             vectors_config={"dense": VectorParams(size=VECTOR_DIM, distance=Distance.COSINE)},
             sparse_vectors_config={
                 "bm25": SparseVectorParams(index=SparseIndexParams(on_disk=False))
@@ -49,9 +50,10 @@ def _bm25_encode(text: str) -> SparseVector:
     return SparseVector(indices=list(freq.keys()), values=list(freq.values()))
 
 
-async def index_chunks(chunks: list[dict]):
+async def index_chunks(chunks: list[dict], collection_name: str | None = None):
     client = get_client()
-    await ensure_collection()
+    target_collection = collection_name or settings.QDRANT_COLLECTION
+    await ensure_collection(target_collection)
 
     texts = [c["text"] for c in chunks]
     dense_vecs = []
@@ -68,7 +70,7 @@ async def index_chunks(chunks: list[dict]):
             payload={k: v for k, v in chunk.items() if k != "chunk_id"},
         ))
 
-    await client.upsert(collection_name=settings.QDRANT_COLLECTION, points=points)
+    await client.upsert(collection_name=target_collection, points=points)
 
 
 def _department_filter(department: str | None) -> Filter | None:
@@ -97,15 +99,21 @@ def _point_to_chunk(point) -> dict:
     return payload
 
 
-async def hybrid_search(query: str, department: str | None, top_k: int = 20) -> list[dict]:
+async def hybrid_search(
+    query: str,
+    department: str | None,
+    top_k: int = 20,
+    collection_name: str | None = None,
+) -> list[dict]:
     client = get_client()
+    target_collection = collection_name or settings.QDRANT_COLLECTION
     dense_vec = await get_embedding(query)
     sparse_vec = _bm25_encode(query)
 
     query_filter = _department_filter(department)
 
     results = await client.query_points(
-        collection_name=settings.QDRANT_COLLECTION,
+        collection_name=target_collection,
         prefetch=[
             Prefetch(query=dense_vec, using="dense", limit=top_k),
             Prefetch(query=sparse_vec, using="bm25", limit=top_k),
@@ -118,10 +126,15 @@ async def hybrid_search(query: str, department: str | None, top_k: int = 20) -> 
     return [_point_to_chunk(r) for r in results.points]
 
 
-async def list_indexed_chunks(department: str | None, limit: int = 500) -> list[dict]:
+async def list_indexed_chunks(
+    department: str | None,
+    limit: int = 500,
+    collection_name: str | None = None,
+) -> list[dict]:
     client = get_client()
+    target_collection = collection_name or settings.QDRANT_COLLECTION
     points, _ = await client.scroll(
-        collection_name=settings.QDRANT_COLLECTION,
+        collection_name=target_collection,
         scroll_filter=_department_filter(department),
         limit=limit,
         with_payload=True,
@@ -130,11 +143,16 @@ async def list_indexed_chunks(department: str | None, limit: int = 500) -> list[
     return [_point_to_chunk(point) for point in points]
 
 
-async def delete_document_chunks(file_name: str, department: str | None) -> bool:
+async def delete_document_chunks(
+    file_name: str,
+    department: str | None,
+    collection_name: str | None = None,
+) -> bool:
     client = get_client()
+    target_collection = collection_name or settings.QDRANT_COLLECTION
     selector = FilterSelector(filter=_document_filter(file_name, department))
     await client.delete(
-        collection_name=settings.QDRANT_COLLECTION,
+        collection_name=target_collection,
         points_selector=selector,
         wait=True,
     )
@@ -160,8 +178,14 @@ async def retrieve_with_metadata(
     department: str | None,
     top_k: int = 20,
     top_n: int = 5,
+    collection_name: str | None = None,
 ) -> tuple[list[dict], list[dict]]:
-    candidates = await hybrid_search(query, department, top_k=top_k)
+    candidates = await hybrid_search(
+        query,
+        department,
+        top_k=top_k,
+        collection_name=collection_name,
+    )
     if not candidates:
         return [], []
     passages = [c["text"] for c in candidates]
@@ -169,6 +193,17 @@ async def retrieve_with_metadata(
     return candidates, merge_rerank_scores(candidates, reranked)
 
 
-async def retrieve(query: str, department: str | None, top_n: int = 5) -> list[dict]:
-    _, reranked = await retrieve_with_metadata(query, department, top_k=20, top_n=top_n)
+async def retrieve(
+    query: str,
+    department: str | None,
+    top_n: int = 5,
+    collection_name: str | None = None,
+) -> list[dict]:
+    _, reranked = await retrieve_with_metadata(
+        query,
+        department,
+        top_k=20,
+        top_n=top_n,
+        collection_name=collection_name,
+    )
     return reranked

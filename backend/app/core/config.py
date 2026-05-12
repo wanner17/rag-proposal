@@ -22,6 +22,7 @@ class Settings(BaseSettings):
         default=DEFAULT_RAG_COLLECTION,
         validation_alias=AliasChoices("QDRANT_COLLECTION", "RAG_COLLECTION"),
     )
+    PROJECT_DB_PATH: str = "data/projects.sqlite3"
     RAG_ENABLED_PLUGINS: str = "proposal"
     SECRET_KEY: str = "change-me"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 480

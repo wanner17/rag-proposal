@@ -12,7 +12,8 @@ from app.plugins.proposal.backend.schemas import (
     ProposalVariant,
 )
 from app.plugins.proposal.backend.services.proposal_llm import generate_proposal_draft
-from app.services.retrieval import retrieve_with_metadata
+from app.services.projects import get_default_project, get_project
+from app.services.retrieval import ensure_collection, retrieve_with_metadata
 from app.services.retrieval_experiments import CandidateIdentity, quality_summary
 
 router = APIRouter(prefix="/proposals", tags=["proposals"])
@@ -62,6 +63,21 @@ async def draft_proposal(req: ProposalDraftRequest, user: UserInfo = Depends(get
     request_id = str(uuid4())
     query = _resolve_query(req)
     department_scope = resolve_department_scope(user, req.department)
+    project = get_project(req.project_id) if req.project_id else get_default_project()
+    proposal_enabled = any(plugin.plugin_id == "proposal" and plugin.enabled for plugin in project.plugins)
+
+    if not proposal_enabled:
+        return ProposalDraftResponse(
+            request_id=request_id,
+            found=False,
+            status="error",
+            scenario_id=req.scenario_id,
+            department_scope=department_scope,
+            variants=[],
+            shared_sources=[],
+            warnings=["이 프로젝트에서는 제안서 플러그인이 비활성화되어 있습니다."],
+            no_results_message=None,
+        )
 
     if not query:
         return ProposalDraftResponse(
@@ -77,11 +93,13 @@ async def draft_proposal(req: ProposalDraftRequest, user: UserInfo = Depends(get
         )
 
     try:
+        await ensure_collection(project.rag_config.collection_name)
         candidates, reranked = await retrieve_with_metadata(
             query,
             department=department_scope,
             top_k=req.top_k,
             top_n=req.top_n,
+            collection_name=project.rag_config.collection_name,
         )
     except Exception as exc:
         logger.exception("Proposal retrieval failed")

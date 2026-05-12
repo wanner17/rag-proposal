@@ -30,7 +30,7 @@ def test_unauthorized_proposal_request_returns_401():
 
 
 def test_successful_proposal_response_shape(monkeypatch):
-    async def fake_retrieve_with_metadata(query, department, top_k=20, top_n=5):
+    async def fake_retrieve_with_metadata(query, department, top_k=20, top_n=5, **kwargs):
         return [_chunk()], [_chunk()]
 
     async def fake_generate(query, chunks):
@@ -62,7 +62,7 @@ def test_successful_proposal_response_shape(monkeypatch):
 def test_non_admin_proposal_cannot_widen_department(monkeypatch):
     captured = {}
 
-    async def fake_retrieve_with_metadata(query, department, top_k=20, top_n=5):
+    async def fake_retrieve_with_metadata(query, department, top_k=20, top_n=5, **kwargs):
         captured["department"] = department
         return [_chunk(department)], [_chunk(department)]
 
@@ -87,7 +87,7 @@ def test_non_admin_proposal_cannot_widen_department(monkeypatch):
 def test_admin_proposal_can_narrow_department(monkeypatch):
     captured = {}
 
-    async def fake_retrieve_with_metadata(query, department, top_k=20, top_n=5):
+    async def fake_retrieve_with_metadata(query, department, top_k=20, top_n=5, **kwargs):
         captured["department"] = department
         return [_chunk(department)], [_chunk(department)]
 
@@ -112,7 +112,7 @@ def test_admin_proposal_can_narrow_department(monkeypatch):
 def test_known_scenario_id_can_drive_query_without_custom_prompt(monkeypatch):
     captured = {}
 
-    async def fake_retrieve_with_metadata(query, department, top_k=20, top_n=5):
+    async def fake_retrieve_with_metadata(query, department, top_k=20, top_n=5, **kwargs):
         captured["query"] = query
         return [_chunk(department)], [_chunk(department)]
 
@@ -160,7 +160,7 @@ def test_retrieval_failure_returns_error_contract(monkeypatch):
 
 
 def test_llm_failure_returns_partial_with_sources(monkeypatch):
-    async def fake_retrieve_with_metadata(query, department, top_k=20, top_n=5):
+    async def fake_retrieve_with_metadata(query, department, top_k=20, top_n=5, **kwargs):
         return [_chunk()], [_chunk()]
 
     async def fail_generate(*args, **kwargs):

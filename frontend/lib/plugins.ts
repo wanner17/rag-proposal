@@ -9,6 +9,7 @@ export interface NavigationItem {
 const coreNavigation: NavigationItem[] = [
   { href: "/chat", label: "채팅", order: 10 },
   { href: "/documents", label: "문서 조회", order: 20 },
+  { href: "/admin/projects", label: "프로젝트", order: 35 },
   { href: "/upload", label: "문서 업로드", order: 40 },
 ];
 

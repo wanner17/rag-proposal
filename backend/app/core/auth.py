@@ -68,3 +68,9 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> UserInfo:
         )
     except JWTError:
         raise exc
+
+
+async def require_admin(user: UserInfo = Depends(get_current_user)) -> UserInfo:
+    if not user.is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="관리자 권한이 필요합니다")
+    return user

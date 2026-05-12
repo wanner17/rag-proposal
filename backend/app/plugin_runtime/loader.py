@@ -15,7 +15,15 @@ def repo_root() -> Path:
     return current.parents[3]
 
 
-def default_plugin_dir() -> Path:
+def default_plugin_dir(plugin_ids: list[str] | None = None) -> Path:
+    current = Path(__file__).resolve()
+    candidates = [parent / "plugins" for parent in current.parents if (parent / "plugins").is_dir()]
+    if plugin_ids:
+        for candidate in candidates:
+            if all((candidate / plugin_id / "plugin.yaml").is_file() for plugin_id in plugin_ids):
+                return candidate
+    if candidates:
+        return candidates[0]
     return repo_root() / "plugins"
 
 
@@ -77,7 +85,7 @@ def load_plugin_config(path: Path) -> PluginConfig:
 
 
 def load_allowed_plugins(plugin_ids: list[str], plugin_dir: Path | None = None) -> list[PluginConfig]:
-    base_dir = plugin_dir or default_plugin_dir()
+    base_dir = plugin_dir or default_plugin_dir(plugin_ids)
     seen: set[str] = set()
     configs: list[PluginConfig] = []
 

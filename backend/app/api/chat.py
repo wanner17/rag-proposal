@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 from app.models.schemas import ChatRequest, ChatResponse, Source, UserInfo
 from app.core.auth import get_current_user, resolve_department_scope
-from app.services.retrieval import retrieve
+from app.services.retrieval import retrieve_with_critic
 from app.services.llm import generate, generate_stream
 
 router = APIRouter(prefix="/chat", tags=["chat"])
@@ -13,7 +13,8 @@ router = APIRouter(prefix="/chat", tags=["chat"])
 async def chat(req: ChatRequest, user: UserInfo = Depends(get_current_user)):
     department = resolve_department_scope(user, req.department)
 
-    chunks = await retrieve(req.query, department=department, top_n=5)
+    critic_result = await retrieve_with_critic(req.query, department=department, top_n=5)
+    chunks = critic_result.selected.reranked
 
     if not chunks:
         return ChatResponse(
@@ -40,7 +41,8 @@ async def chat_stream(req: ChatRequest, user: UserInfo = Depends(get_current_use
     """SSE 스트리밍 엔드포인트. 먼저 검색하고 LLM 답변을 토큰 단위로 스트리밍."""
     department = resolve_department_scope(user, req.department)
 
-    chunks = await retrieve(req.query, department=department, top_n=5)
+    critic_result = await retrieve_with_critic(req.query, department=department, top_n=5)
+    chunks = critic_result.selected.reranked
     sources = [
         Source(file=c.get("file", ""), page=c.get("page", 0),
                section=c.get("section", ""), score=c.get("score", 0.0))

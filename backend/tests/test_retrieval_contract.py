@@ -32,7 +32,7 @@ def test_merge_rerank_scores_preserves_retrieval_metadata():
 
 
 def test_retrieve_call_shape_stays_backward_compatible(monkeypatch):
-    async def fake_hybrid_search(query, department, top_k=20):
+    async def fake_hybrid_search(query, department, top_k=20, collection_name=None):
         assert query == "질문"
         assert department == "공공사업팀"
         assert top_k == 20
@@ -52,7 +52,7 @@ def test_retrieve_call_shape_stays_backward_compatible(monkeypatch):
 
 
 def test_retrieve_with_metadata_returns_candidates_and_reranked(monkeypatch):
-    async def fake_hybrid_search(query, department, top_k=20):
+    async def fake_hybrid_search(query, department, top_k=20, collection_name=None):
         return [_candidate(1)]
 
     async def fake_rerank(query, passages, top_n=5):

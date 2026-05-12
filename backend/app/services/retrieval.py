@@ -8,6 +8,13 @@ from kiwipiepy import Kiwi
 from app.core.config import settings
 from app.services.embedding import get_embedding
 from app.services.reranker import rerank
+from app.services.retrieval_critic import (
+    CriticPass,
+    CriticResult,
+    assess_retrieval,
+    build_retry_plan,
+    select_best_pass,
+)
 
 kiwi = Kiwi()
 _client: AsyncQdrantClient | None = None
@@ -193,17 +200,72 @@ async def retrieve_with_metadata(
     return candidates, merge_rerank_scores(candidates, reranked)
 
 
+async def retrieve_with_critic(
+    query: str,
+    department: str | None,
+    top_k: int = 20,
+    top_n: int = 5,
+    collection_name: str | None = None,
+) -> CriticResult:
+    initial_candidates, initial_reranked = await retrieve_with_metadata(
+        query,
+        department,
+        top_k=top_k,
+        top_n=top_n,
+        collection_name=collection_name,
+    )
+    initial_decision = assess_retrieval(
+        query,
+        initial_reranked,
+        requested_top_n=top_n,
+        retry_triggered=False,
+        selected_pass="initial",
+    )
+    initial_pass = CriticPass(
+        name="initial",
+        candidates=initial_candidates,
+        reranked=initial_reranked,
+        decision=initial_decision,
+    )
+    if initial_decision.sufficient:
+        return CriticResult(selected=initial_pass, initial=initial_pass)
+
+    retry_plan = build_retry_plan(top_k, top_n, initial_decision.trigger_reasons)
+    retry_candidates, retry_reranked = await retrieve_with_metadata(
+        query,
+        department,
+        top_k=retry_plan.top_k,
+        top_n=retry_plan.top_n,
+        collection_name=collection_name,
+    )
+    retry_decision = assess_retrieval(
+        query,
+        retry_reranked,
+        requested_top_n=retry_plan.top_n,
+        retry_triggered=True,
+        selected_pass="retry",
+    )
+    retry_pass = CriticPass(
+        name="retry",
+        candidates=retry_candidates,
+        reranked=retry_reranked,
+        decision=retry_decision,
+    )
+    selected = select_best_pass(initial_pass, retry_pass)
+    return CriticResult(selected=selected, initial=initial_pass, retry=retry_pass)
+
+
 async def retrieve(
     query: str,
     department: str | None,
     top_n: int = 5,
     collection_name: str | None = None,
 ) -> list[dict]:
-    _, reranked = await retrieve_with_metadata(
+    critic_result = await retrieve_with_critic(
         query,
         department,
         top_k=20,
         top_n=top_n,
         collection_name=collection_name,
     )
-    return reranked
+    return critic_result.selected.reranked

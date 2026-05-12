@@ -30,13 +30,20 @@ def test_unauthorized_proposal_request_returns_401():
 
 
 def test_successful_proposal_response_shape(monkeypatch):
-    async def fake_retrieve_with_metadata(query, department, top_k=20, top_n=5, **kwargs):
-        return [_chunk()], [_chunk()]
+    class FakePass:
+        candidates = [_chunk()]
+        reranked = [_chunk()]
+
+    class FakeResult:
+        selected = FakePass()
+
+    async def fake_retrieve_with_critic(query, department, top_k=20, top_n=5, **kwargs):
+        return FakeResult()
 
     async def fake_generate(query, chunks):
         return "## 요약\n근거 기반 초안입니다."
 
-    monkeypatch.setattr("app.api.proposals.retrieve_with_metadata", fake_retrieve_with_metadata)
+    monkeypatch.setattr("app.api.proposals.retrieve_with_critic", fake_retrieve_with_critic)
     monkeypatch.setattr("app.api.proposals.generate_proposal_draft", fake_generate)
 
     client = TestClient(app)
@@ -62,14 +69,21 @@ def test_successful_proposal_response_shape(monkeypatch):
 def test_non_admin_proposal_cannot_widen_department(monkeypatch):
     captured = {}
 
-    async def fake_retrieve_with_metadata(query, department, top_k=20, top_n=5, **kwargs):
+    async def fake_retrieve_with_critic(query, department, top_k=20, top_n=5, **kwargs):
         captured["department"] = department
-        return [_chunk(department)], [_chunk(department)]
+        class FakePass:
+            candidates = [_chunk(department)]
+            reranked = [_chunk(department)]
+
+        class FakeResult:
+            selected = FakePass()
+
+        return FakeResult()
 
     async def fake_generate(query, chunks):
         return "초안"
 
-    monkeypatch.setattr("app.api.proposals.retrieve_with_metadata", fake_retrieve_with_metadata)
+    monkeypatch.setattr("app.api.proposals.retrieve_with_critic", fake_retrieve_with_critic)
     monkeypatch.setattr("app.api.proposals.generate_proposal_draft", fake_generate)
 
     client = TestClient(app)
@@ -87,14 +101,21 @@ def test_non_admin_proposal_cannot_widen_department(monkeypatch):
 def test_admin_proposal_can_narrow_department(monkeypatch):
     captured = {}
 
-    async def fake_retrieve_with_metadata(query, department, top_k=20, top_n=5, **kwargs):
+    async def fake_retrieve_with_critic(query, department, top_k=20, top_n=5, **kwargs):
         captured["department"] = department
-        return [_chunk(department)], [_chunk(department)]
+        class FakePass:
+            candidates = [_chunk(department)]
+            reranked = [_chunk(department)]
+
+        class FakeResult:
+            selected = FakePass()
+
+        return FakeResult()
 
     async def fake_generate(query, chunks):
         return "초안"
 
-    monkeypatch.setattr("app.api.proposals.retrieve_with_metadata", fake_retrieve_with_metadata)
+    monkeypatch.setattr("app.api.proposals.retrieve_with_critic", fake_retrieve_with_critic)
     monkeypatch.setattr("app.api.proposals.generate_proposal_draft", fake_generate)
 
     client = TestClient(app)
@@ -112,14 +133,21 @@ def test_admin_proposal_can_narrow_department(monkeypatch):
 def test_known_scenario_id_can_drive_query_without_custom_prompt(monkeypatch):
     captured = {}
 
-    async def fake_retrieve_with_metadata(query, department, top_k=20, top_n=5, **kwargs):
+    async def fake_retrieve_with_critic(query, department, top_k=20, top_n=5, **kwargs):
         captured["query"] = query
-        return [_chunk(department)], [_chunk(department)]
+        class FakePass:
+            candidates = [_chunk(department)]
+            reranked = [_chunk(department)]
+
+        class FakeResult:
+            selected = FakePass()
+
+        return FakeResult()
 
     async def fake_generate(query, chunks):
         return "초안"
 
-    monkeypatch.setattr("app.api.proposals.retrieve_with_metadata", fake_retrieve_with_metadata)
+    monkeypatch.setattr("app.api.proposals.retrieve_with_critic", fake_retrieve_with_critic)
     monkeypatch.setattr("app.api.proposals.generate_proposal_draft", fake_generate)
 
     client = TestClient(app)
@@ -141,7 +169,7 @@ def test_retrieval_failure_returns_error_contract(monkeypatch):
     async def fail_generate(*args, **kwargs):
         raise AssertionError("LLM must not be called when retrieval fails")
 
-    monkeypatch.setattr("app.api.proposals.retrieve_with_metadata", fail_retrieve)
+    monkeypatch.setattr("app.api.proposals.retrieve_with_critic", fail_retrieve)
     monkeypatch.setattr("app.api.proposals.generate_proposal_draft", fail_generate)
 
     client = TestClient(app)
@@ -160,13 +188,20 @@ def test_retrieval_failure_returns_error_contract(monkeypatch):
 
 
 def test_llm_failure_returns_partial_with_sources(monkeypatch):
-    async def fake_retrieve_with_metadata(query, department, top_k=20, top_n=5, **kwargs):
-        return [_chunk()], [_chunk()]
+    class FakePass:
+        candidates = [_chunk()]
+        reranked = [_chunk()]
+
+    class FakeResult:
+        selected = FakePass()
+
+    async def fake_retrieve_with_critic(query, department, top_k=20, top_n=5, **kwargs):
+        return FakeResult()
 
     async def fail_generate(*args, **kwargs):
         raise RuntimeError("llm unavailable")
 
-    monkeypatch.setattr("app.api.proposals.retrieve_with_metadata", fake_retrieve_with_metadata)
+    monkeypatch.setattr("app.api.proposals.retrieve_with_critic", fake_retrieve_with_critic)
     monkeypatch.setattr("app.api.proposals.generate_proposal_draft", fail_generate)
 
     client = TestClient(app)

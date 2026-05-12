@@ -12,13 +12,20 @@ def _headers():
 
 
 def test_proposal_no_results_is_deterministic_and_skips_llm(monkeypatch):
-    async def fake_retrieve_with_metadata(query, department, top_k=20, top_n=5):
-        return [], []
+    class EmptyPass:
+        candidates = []
+        reranked = []
+
+    class EmptyResult:
+        selected = EmptyPass()
+
+    async def fake_retrieve_with_critic(query, department, top_k=20, top_n=5, **kwargs):
+        return EmptyResult()
 
     async def fail_generate(*args, **kwargs):
         raise AssertionError("proposal LLM must not be called without evidence")
 
-    monkeypatch.setattr("app.api.proposals.retrieve_with_metadata", fake_retrieve_with_metadata)
+    monkeypatch.setattr("app.api.proposals.retrieve_with_critic", fake_retrieve_with_critic)
     monkeypatch.setattr("app.api.proposals.generate_proposal_draft", fail_generate)
 
     client = TestClient(app)
@@ -38,10 +45,16 @@ def test_proposal_no_results_is_deterministic_and_skips_llm(monkeypatch):
 
 
 def test_existing_chat_no_results_is_stable(monkeypatch):
-    async def fake_retrieve(query, department, top_n=5):
-        return []
+    class EmptyPass:
+        reranked = []
 
-    monkeypatch.setattr("app.api.chat.retrieve", fake_retrieve)
+    class EmptyResult:
+        selected = EmptyPass()
+
+    async def fake_retrieve_with_critic(query, department, top_n=5):
+        return EmptyResult()
+
+    monkeypatch.setattr("app.api.chat.retrieve_with_critic", fake_retrieve_with_critic)
     client = TestClient(app)
     response = client.post("/api/chat", headers=_headers(), json={"query": "없는 근거"})
 
@@ -53,10 +66,16 @@ def test_existing_chat_no_results_is_stable(monkeypatch):
 
 
 def test_existing_stream_no_results_is_deterministic(monkeypatch):
-    async def fake_retrieve(query, department, top_n=5):
-        return []
+    class EmptyPass:
+        reranked = []
 
-    monkeypatch.setattr("app.api.chat.retrieve", fake_retrieve)
+    class EmptyResult:
+        selected = EmptyPass()
+
+    async def fake_retrieve_with_critic(query, department, top_n=5):
+        return EmptyResult()
+
+    monkeypatch.setattr("app.api.chat.retrieve_with_critic", fake_retrieve_with_critic)
     client = TestClient(app)
     response = client.post("/api/chat/stream", headers=_headers(), json={"query": "없는 근거"})
 

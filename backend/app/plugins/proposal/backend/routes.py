@@ -13,7 +13,7 @@ from app.plugins.proposal.backend.schemas import (
 )
 from app.plugins.proposal.backend.services.proposal_llm import generate_proposal_draft
 from app.services.projects import get_default_project, get_project
-from app.services.retrieval import ensure_collection, retrieve_with_metadata
+from app.services.retrieval import ensure_collection, retrieve_with_critic
 from app.services.retrieval_experiments import CandidateIdentity, quality_summary
 
 router = APIRouter(prefix="/proposals", tags=["proposals"])
@@ -94,13 +94,15 @@ async def draft_proposal(req: ProposalDraftRequest, user: UserInfo = Depends(get
 
     try:
         await ensure_collection(project.rag_config.collection_name)
-        candidates, reranked = await retrieve_with_metadata(
+        critic_result = await retrieve_with_critic(
             query,
             department=department_scope,
             top_k=req.top_k,
             top_n=req.top_n,
             collection_name=project.rag_config.collection_name,
         )
+        candidates = critic_result.selected.candidates
+        reranked = critic_result.selected.reranked
     except Exception as exc:
         logger.exception("Proposal retrieval failed")
         return ProposalDraftResponse(

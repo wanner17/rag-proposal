@@ -17,8 +17,8 @@ services:
   # ─── 애플리케이션 ────────────────────────────────────
   backend:
     build:
-      context: ./backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: backend/Dockerfile
     restart: unless-stopped
     env_file: .env
     environment:
@@ -45,6 +45,7 @@ services:
     restart: unless-stopped
     environment:
       NEXT_PUBLIC_API_URL: /api
+      NEXT_PUBLIC_RAG_ENABLED_PLUGINS: proposal
       BACKEND_URL: http://backend:8000
     depends_on:
       - backend

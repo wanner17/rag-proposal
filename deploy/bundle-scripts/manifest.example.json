@@ -1,0 +1,89 @@
+{
+  "bundle_format_version": 1,
+  "created_at": "2026-05-12T00:00:00Z",
+  "target_platform": "linux/amd64",
+  "source_git_revision": "replace-with-git-sha",
+  "compose_file": "deploy/airgap-compose/compose.yml",
+  "enabled_plugins": ["proposal"],
+  "images": [
+    {
+      "name": "rag-proposal-backend",
+      "tag": "airgap",
+      "tar": "images/rag-proposal-backend-airgap.tar",
+      "sha256": "replace-with-sha256"
+    },
+    {
+      "name": "rag-proposal-frontend",
+      "tag": "airgap",
+      "tar": "images/rag-proposal-frontend-airgap.tar",
+      "sha256": "replace-with-sha256"
+    },
+    {
+      "name": "rag-qdrant",
+      "tag": "airgap",
+      "tar": "images/qdrant.tar",
+      "sha256": "replace-with-sha256"
+    },
+    {
+      "name": "rag-nginx",
+      "tag": "airgap",
+      "tar": "images/nginx.tar",
+      "sha256": "replace-with-sha256"
+    },
+    {
+      "name": "rag-embedding",
+      "tag": "airgap",
+      "tar": "images/embedding.tar",
+      "sha256": "replace-with-sha256"
+    },
+    {
+      "name": "rag-reranker",
+      "tag": "airgap",
+      "tar": "images/reranker.tar",
+      "sha256": "replace-with-sha256"
+    },
+    {
+      "name": "rag-llm",
+      "tag": "airgap",
+      "tar": "images/llm.tar",
+      "sha256": "replace-with-sha256"
+    }
+  ],
+  "models": [
+    {
+      "name": "Qwen3-8B-Q4_K_M.gguf",
+      "path": "models/Qwen3-8B-Q4_K_M.gguf",
+      "service": "llm",
+      "size_bytes": 0,
+      "sha256": "replace-with-sha256"
+    }
+  ],
+  "python_wheelhouse": {
+    "path": "wheelhouse",
+    "source": "backend/requirements.txt"
+  },
+  "frontend_artifact": {
+    "image": "rag-proposal-frontend:airgap"
+  },
+  "plugin_configs": [
+    {
+      "id": "proposal",
+      "path": "plugins/proposal/plugin.yaml",
+      "sha256": "replace-with-sha256"
+    }
+  ],
+  "required_environment": [
+    "BACKEND_IMAGE",
+    "FRONTEND_IMAGE",
+    "LLM_HOST",
+    "EMBEDDING_HOST",
+    "RERANKER_HOST"
+  ],
+  "verification": {
+    "command": "deploy/bundle-scripts/verify-offline-install.sh",
+    "health_endpoints": [
+      "http://localhost:8000/api/health",
+      "http://localhost:8000/api/plugins"
+    ]
+  }
+}

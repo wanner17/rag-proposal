@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "사내 제안서 RAG",
-  description: "공공/SI 제안서 검색 시스템",
+  title: "사내 RAG 플랫폼",
+  description: "업로드 문서 기반 검색 및 질의응답 시스템",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

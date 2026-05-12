@@ -10,6 +10,7 @@ import {
   listDocuments,
   searchDocuments,
 } from "@/lib/api";
+import AppNav from "@/components/AppNav";
 
 type Status = "loading" | "idle" | "searching" | "error";
 
@@ -83,11 +84,6 @@ export default function DocumentsPage() {
     }
   }
 
-  function handleLogout() {
-    localStorage.removeItem("token");
-    router.push("/login");
-  }
-
   return (
     <div className="min-h-screen max-w-6xl mx-auto px-6 py-6">
       <header className="flex items-center justify-between mb-6 bg-white border shadow-sm rounded-2xl px-5 py-4">
@@ -95,12 +91,7 @@ export default function DocumentsPage() {
           <h1 className="text-xl font-bold text-blue-700">업로드 문서 조회</h1>
           <p className="text-sm text-gray-500 mt-1">업로드된 문서 목록과 검색 결과 원문 조각을 확인합니다.</p>
         </div>
-        <nav className="flex gap-3 text-sm">
-          <a href="/chat" className="text-gray-500 hover:text-gray-700">채팅</a>
-          <a href="/proposals" className="text-gray-500 hover:text-gray-700">제안서 초안</a>
-          <a href="/upload" className="text-gray-500 hover:text-gray-700">문서 업로드</a>
-          <button onClick={handleLogout} className="text-red-500 hover:text-red-700">로그아웃</button>
-        </nav>
+        <AppNav />
       </header>
 
       <section className="bg-white border rounded-2xl shadow-sm p-5 mb-6">

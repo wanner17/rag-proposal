@@ -1,0 +1,48 @@
+services:
+  qdrant:
+    image: qdrant/qdrant:latest
+    volumes:
+      - ../../volumes/qdrant_data:/qdrant/storage
+    ports:
+      - "6333:6333"
+
+  backend:
+    build:
+      context: ../..
+      dockerfile: backend/Dockerfile
+    environment:
+      LLM_HOST: http://host.docker.internal:8080/v1
+      EMBEDDING_HOST: http://host.docker.internal:8001
+      RERANKER_HOST: http://host.docker.internal:8002
+      QDRANT_HOST: http://qdrant:6333
+      RAG_ENABLED_PLUGINS: proposal
+      ALLOWED_ORIGINS: http://localhost:3000
+    depends_on:
+      - qdrant
+    ports:
+      - "8000:8000"
+    volumes:
+      - ../../volumes/documents:/app/documents
+
+  frontend:
+    build:
+      context: ../../frontend
+      dockerfile: Dockerfile
+    environment:
+      NEXT_PUBLIC_API_URL: /api
+      NEXT_PUBLIC_RAG_ENABLED_PLUGINS: proposal
+      BACKEND_URL: http://backend:8000
+    depends_on:
+      - backend
+    ports:
+      - "3000:3000"
+
+  nginx:
+    image: nginx:alpine
+    volumes:
+      - ../../nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "80:80"
+    depends_on:
+      - frontend
+      - backend

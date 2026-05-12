@@ -3,7 +3,7 @@ import httpx
 from typing import AsyncGenerator
 from app.core.config import settings
 
-SYSTEM_PROMPT = """당신은 공공기관 SI 제안서 전문 분석가다.
+SYSTEM_PROMPT = """당신은 업로드된 업무 문서를 분석하는 RAG 질의응답 전문가다.
 제공된 참고 문서를 바탕으로 질문에 충실하고 상세하게 답변하라.
 
 답변 원칙:

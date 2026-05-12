@@ -1,0 +1,26 @@
+id: proposal
+name: Proposal Draft
+version: 0.1.0
+enabled: true
+routes:
+  backend:
+    prefix: /api/proposals
+    module: app.plugins.proposal.backend.routes
+  frontend:
+    path: /proposals
+    component: plugins/proposal/pages/ProposalPage
+navigation:
+  label: 제안서 초안
+  order: 30
+retrieval:
+  top_k: 20
+  top_n: 5
+outputs:
+  sections:
+    - 요약
+    - 요구/상황 해석
+    - 제안 접근방안
+    - 구현/운영 포인트
+    - 일정/리스크
+    - 근거 출처
+    - 문서에서 확인되지 않는 공백/가정

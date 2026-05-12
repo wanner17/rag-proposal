@@ -77,24 +77,6 @@ export async function ingestDocument(formData: FormData, token: string) {
   return res.json();
 }
 
-export async function draftProposal(request: ProposalDraftRequest, token: string) {
-  const res = await fetch(`${API_BASE}/proposals/draft`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify(request),
-  });
-
-  if (!res.ok) {
-    const message = await res.text().catch(() => "");
-    throw new Error(message || "제안서 초안 생성 실패");
-  }
-
-  return res.json() as Promise<ProposalDraftResponse>;
-}
-
 export async function listDocuments(token: string) {
   const res = await fetch(`${API_BASE}/documents`, {
     headers: { Authorization: `Bearer ${token}` },
@@ -139,40 +121,13 @@ export interface Source {
 
 export type ScoreSource = "retrieval" | "rerank" | "unavailable" | string;
 
-export interface ProposalDraftRequest {
-  scenario_id?: string | null;
-  query: string;
-  department?: string | null;
-  top_k?: number;
-  top_n?: number;
-}
-
-export interface ProposalSource extends Source {
-  point_id: string;
-  score_source: ScoreSource;
-}
-
-export interface ProposalVariant {
-  variant_id: string;
-  title: string;
-  strategy: string;
-  draft_markdown: string;
-  sources: ProposalSource[];
-  warnings: string[];
-  quality_summary?: string | null;
-}
-
-export interface ProposalDraftResponse {
-  request_id: string;
-  found: boolean;
-  status: "ok" | "no_results" | "partial" | "error" | string;
-  scenario_id?: string | null;
-  department_scope?: string | null;
-  variants: ProposalVariant[];
-  shared_sources: ProposalSource[];
-  warnings: string[];
-  no_results_message?: string | null;
-}
+export {
+  draftProposal,
+  type ProposalDraftRequest,
+  type ProposalDraftResponse,
+  type ProposalSource,
+  type ProposalVariant,
+} from "@/plugins/proposal/api";
 
 export interface DocumentSummary {
   file: string;

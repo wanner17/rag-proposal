@@ -1,4 +1,4 @@
-from app.core.config import Settings
+from app.core.config import DEFAULT_RAG_COLLECTION, Settings
 
 
 def test_llm_host_reads_current_env_name(monkeypatch):
@@ -26,3 +26,22 @@ def test_llm_model_reads_current_env_name(monkeypatch):
     settings = Settings(_env_file=None)
 
     assert settings.LLM_MODEL == "Qwen3-8B-Q4_K_M.gguf"
+
+
+def test_qdrant_collection_keeps_rag_collection_alias(monkeypatch):
+    monkeypatch.delenv("QDRANT_COLLECTION", raising=False)
+    monkeypatch.setenv("RAG_COLLECTION", "rag-documents")
+
+    settings = Settings(_env_file=None)
+
+    assert settings.QDRANT_COLLECTION == "rag-documents"
+
+
+def test_qdrant_collection_default_is_documented_compatibility_value(monkeypatch):
+    monkeypatch.delenv("QDRANT_COLLECTION", raising=False)
+    monkeypatch.delenv("RAG_COLLECTION", raising=False)
+
+    settings = Settings(_env_file=None)
+
+    assert DEFAULT_RAG_COLLECTION == "proposals"
+    assert settings.QDRANT_COLLECTION == DEFAULT_RAG_COLLECTION

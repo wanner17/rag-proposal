@@ -1,0 +1,61 @@
+services:
+  qdrant:
+    image: ${QDRANT_IMAGE:-rag-qdrant:airgap}
+    volumes:
+      - ./volumes/qdrant_data:/qdrant/storage
+    ports:
+      - "6333:6333"
+
+  backend:
+    image: ${BACKEND_IMAGE:-rag-proposal-backend:airgap}
+    environment:
+      LLM_HOST: ${LLM_HOST:-http://llm:8080/v1}
+      EMBEDDING_HOST: ${EMBEDDING_HOST:-http://embedding:8001}
+      RERANKER_HOST: ${RERANKER_HOST:-http://reranker:8002}
+      QDRANT_HOST: http://qdrant:6333
+      RAG_ENABLED_PLUGINS: ${RAG_ENABLED_PLUGINS:-proposal}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3000}
+    depends_on:
+      - qdrant
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./volumes/documents:/app/documents
+
+  embedding:
+    image: ${EMBEDDING_IMAGE:-rag-embedding:airgap}
+    ports:
+      - "8001:8001"
+
+  reranker:
+    image: ${RERANKER_IMAGE:-rag-reranker:airgap}
+    ports:
+      - "8002:8002"
+
+  llm:
+    image: ${LLM_IMAGE:-rag-llm:airgap}
+    volumes:
+      - ./models:/models:ro
+    ports:
+      - "8080:8080"
+
+  frontend:
+    image: ${FRONTEND_IMAGE:-rag-proposal-frontend:airgap}
+    environment:
+      NEXT_PUBLIC_API_URL: /api
+      NEXT_PUBLIC_RAG_ENABLED_PLUGINS: ${RAG_ENABLED_PLUGINS:-proposal}
+      BACKEND_URL: http://backend:8000
+    depends_on:
+      - backend
+    ports:
+      - "3000:3000"
+
+  nginx:
+    image: ${NGINX_IMAGE:-rag-nginx:airgap}
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "80:80"
+    depends_on:
+      - frontend
+      - backend

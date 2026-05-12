@@ -3,6 +3,7 @@ import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { chatStream, Source, UnauthorizedError } from "@/lib/api";
 import SourceCard from "@/components/SourceCard";
+import AppNav from "@/components/AppNav";
 
 interface Message {
   role: "user" | "assistant";
@@ -116,22 +117,12 @@ export default function ChatPage() {
     }
   }
 
-  function handleLogout() {
-    localStorage.removeItem("token");
-    router.push("/login");
-  }
-
   return (
     <div className="flex flex-col h-screen max-w-4xl mx-auto">
       {/* 헤더 */}
       <header className="flex items-center justify-between px-6 py-4 bg-white border-b shadow-sm">
-        <h1 className="text-lg font-bold text-blue-700">제안서 RAG 시스템</h1>
-        <div className="flex gap-3">
-          <a href="/documents" className="text-sm text-gray-500 hover:text-gray-700">문서 조회</a>
-          <a href="/proposals" className="text-sm text-gray-500 hover:text-gray-700">제안서 초안</a>
-          <a href="/upload" className="text-sm text-gray-500 hover:text-gray-700">문서 업로드</a>
-          <button onClick={handleLogout} className="text-sm text-red-500 hover:text-red-700">로그아웃</button>
-        </div>
+        <h1 className="text-lg font-bold text-blue-700">RAG 문서 검색 시스템</h1>
+        <AppNav />
       </header>
       {authError && (
         <div className="px-6 py-2 text-sm text-red-600 bg-red-50 border-b border-red-100">
@@ -143,8 +134,8 @@ export default function ChatPage() {
       <main className="flex-1 overflow-y-auto px-6 py-4 space-y-6">
         {messages.length === 0 && (
           <div className="text-center text-gray-400 mt-20">
-            <p className="text-xl mb-2">제안서에 대해 질문해보세요</p>
-            <p className="text-sm">예: "LMS 구축 사례 알려줘", "보안 요구사항은?"</p>
+            <p className="text-xl mb-2">업로드 문서에 대해 질문해보세요</p>
+            <p className="text-sm">예: "구축 사례 알려줘", "보안 요구사항은?"</p>
           </div>
         )}
         {messages.map((msg, i) => (
@@ -181,7 +172,7 @@ export default function ChatPage() {
         <form onSubmit={handleSubmit} className="flex gap-3">
           <input
             className="flex-1 border rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-            placeholder="제안서에 대해 질문하세요..."
+            placeholder="업로드 문서에 대해 질문하세요..."
             value={input}
             onChange={(e) => setInput(e.target.value)}
             disabled={loading}

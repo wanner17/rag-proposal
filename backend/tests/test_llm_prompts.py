@@ -3,8 +3,15 @@ import json
 
 import httpx
 
-from app.services.llm import LLM_PARAMS, SYSTEM_PROMPT, _looks_incomplete_answer, _requested_item_count
-from app.services.llm import LLM_UNAVAILABLE_MESSAGE, generate, generate_stream
+from app.services.llm import (
+    LLM_PARAMS,
+    SYSTEM_PROMPT,
+    _completion_retry_query,
+    _looks_incomplete_answer,
+    _requested_item_count,
+    _required_retry_items,
+)
+from app.services.llm import LLM_INTERRUPTED_MESSAGE, LLM_UNAVAILABLE_MESSAGE, generate, generate_stream
 from app.services.proposal_llm import PROPOSAL_SYSTEM_PROMPT
 
 
@@ -41,6 +48,10 @@ def test_completion_retry_preserves_requested_strategy_count():
     )
 
     assert _requested_item_count(query) == 5
+    assert _required_retry_items(query) == ["보안", "DR", "단계별 이행계획", "운영 조직", "장애 대응"]
+    retry_query = _completion_retry_query(query)
+    assert "필수 항목은 보안, DR, 단계별 이행계획, 운영 조직, 장애 대응" in retry_query
+    assert "이 항목명을 다른 항목으로 대체하지 말라" in retry_query
     assert _looks_incomplete_answer(
         "1. 보안\n근거 강도: 강함\n설명: 보안 기준을 반영합니다.\n\n"
         "2. DR\n근거 강도: 약함\n설명: DR 근거는 보완이 필요합니다.\n\n"
@@ -92,6 +103,54 @@ def test_stream_returns_sse_error_instead_of_raising_on_llm_connection_failure(m
 
     payload = json.loads(chunks[0].removeprefix("data: ").strip())
     assert payload["token"] == LLM_UNAVAILABLE_MESSAGE
+    assert chunks[-1] == "data: [DONE]\n\n"
+
+
+def test_stream_reports_interruption_without_replacing_partial_answer(monkeypatch):
+    class InterruptedStream:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+        def raise_for_status(self):
+            return None
+
+        async def aiter_lines(self):
+            yield 'data: {"choices":[{"delta":{"content":"부분 답변"}}]}'
+            raise httpx.ReadError("stream interrupted")
+
+    class InterruptedClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+        def stream(self, *args, **kwargs):
+            return InterruptedStream()
+
+    monkeypatch.setattr("app.services.llm.httpx.AsyncClient", InterruptedClient)
+
+    async def collect():
+        chunks = []
+        async for chunk in generate_stream("질문", [{"file": "a.pdf", "page": 1, "text": "근거"}]):
+            chunks.append(chunk)
+        return chunks
+
+    chunks = asyncio.run(collect())
+
+    payloads = [
+        json.loads(chunk.removeprefix("data: ").strip())["token"]
+        for chunk in chunks
+        if chunk.startswith("data: {")
+    ]
+    assert payloads == ["부분 답변", LLM_INTERRUPTED_MESSAGE]
+    assert LLM_UNAVAILABLE_MESSAGE not in "".join(payloads)
     assert chunks[-1] == "data: [DONE]\n\n"
 
 

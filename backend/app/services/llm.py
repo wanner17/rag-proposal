@@ -41,11 +41,21 @@ LLM_UNAVAILABLE_MESSAGE = (
     "답변 생성 모델에 연결하지 못했습니다. "
     "llama.cpp 서버가 실행 중인지와 LLM_HOST 설정을 확인해 주세요."
 )
+LLM_INTERRUPTED_MESSAGE = (
+    "\n\n※ 답변 생성이 중간에 중단되었습니다. 위 내용은 부분 응답일 수 있으니 다시 시도해 주세요."
+)
 OUTPUT_LIMIT_MESSAGE = (
     "\n\n※ 출력 한도에 도달해 답변을 압축했습니다. 더 자세한 항목을 지정해 다시 질문해 주세요."
 )
 INCOMPLETE_RETRY_NOTICE = "※ 답변이 너무 짧아 번호 목록 형식으로 다시 생성합니다."
 RETRY_ITEM_KEYWORDS = ("보안", "DR", "재해", "단계별", "이행", "운영 조직", "장애 대응", "장애")
+RETRY_REQUIRED_ITEMS = (
+    ("보안", ("보안",)),
+    ("DR", ("DR", "재해 복구")),
+    ("단계별 이행계획", ("단계별 이행계획", "단계별", "이행계획")),
+    ("운영 조직", ("운영 조직", "운영조직")),
+    ("장애 대응", ("장애 대응", "장애대응")),
+)
 
 
 def _truncate_text(text: str, limit: int) -> str:
@@ -72,6 +82,10 @@ def _requested_item_count(query: str) -> int:
     if numbered_requests:
         return max(3, min(5, int(numbered_requests[-1])))
 
+    required_items = _required_retry_items(query)
+    if required_items:
+        return max(3, min(5, len(required_items)))
+
     keyword_count = sum(1 for keyword in RETRY_ITEM_KEYWORDS if keyword in query)
     if "DR" in query and "재해" in query:
         keyword_count -= 1
@@ -80,13 +94,28 @@ def _requested_item_count(query: str) -> int:
     return max(3, min(5, keyword_count))
 
 
+def _required_retry_items(query: str) -> list[str]:
+    items = []
+    for item, aliases in RETRY_REQUIRED_ITEMS:
+        if any(alias in query for alias in aliases):
+            items.append(item)
+    return items
+
+
 def _completion_retry_query(query: str) -> str:
     item_count = _requested_item_count(query)
+    required_items = _required_retry_items(query)
+    required_instruction = (
+        f"필수 항목은 {', '.join(required_items)}이며, 이 항목명을 다른 항목으로 대체하지 말라. "
+        if required_items
+        else ""
+    )
     return (
         f"{query}\n\n"
         f"중요: 도입문 없이 바로 1번부터 {item_count}번까지 번호 목록으로 답하라. "
         f"정확히 {item_count}개 항목만 작성하라. 각 항목은 3줄만 사용하라: "
         "제목, 근거 강도, 한 문장 설명과 출처. "
+        f"{required_instruction}"
         "마크다운 표와 긴 bullet을 쓰지 말라. "
         "마지막은 반드시 '요약: 위 항목을 우선 반영하는 것이 적절합니다.'로 끝내라."
     )
@@ -196,10 +225,10 @@ async def generate_tokens(query: str, chunks: list[dict]) -> AsyncGenerator[str,
     for attempt, delay in enumerate((0.0, *LLM_RETRY_DELAYS), start=1):
         if delay:
             await asyncio.sleep(delay)
+        yielded = False
+        tokens = []
         try:
             async with httpx.AsyncClient(timeout=180.0) as client:
-                yielded = False
-                tokens = []
                 async for token in _iter_stream_tokens(client, query, chunks):
                     yielded = True
                     tokens.append(token)
@@ -227,19 +256,19 @@ async def generate_tokens(query: str, chunks: list[dict]) -> AsyncGenerator[str,
                     yield token
                 return
             logger.exception("LLM streaming token request failed")
-            yield LLM_UNAVAILABLE_MESSAGE
+            yield LLM_INTERRUPTED_MESSAGE if yielded else LLM_UNAVAILABLE_MESSAGE
             return
         except httpx.HTTPError:
             logger.exception("LLM streaming token request failed")
-            yield LLM_UNAVAILABLE_MESSAGE
+            yield LLM_INTERRUPTED_MESSAGE if yielded else LLM_UNAVAILABLE_MESSAGE
             return
 
 
 async def _compact_stream_tokens(query: str, chunks: list[dict]) -> AsyncGenerator[str, None]:
+    yielded = False
+    tokens = []
     try:
         async with httpx.AsyncClient(timeout=180.0) as client:
-            yielded = False
-            tokens = []
             async for token in _iter_stream_tokens(
                 client,
                 query,
@@ -258,7 +287,7 @@ async def _compact_stream_tokens(query: str, chunks: list[dict]) -> AsyncGenerat
                 yield LLM_UNAVAILABLE_MESSAGE
     except httpx.HTTPError:
         logger.exception("LLM compact streaming token request failed")
-        yield LLM_UNAVAILABLE_MESSAGE
+        yield LLM_INTERRUPTED_MESSAGE if yielded else LLM_UNAVAILABLE_MESSAGE
 
 
 async def _retry_incomplete_answer(query: str, chunks: list[dict]) -> AsyncGenerator[str, None]:

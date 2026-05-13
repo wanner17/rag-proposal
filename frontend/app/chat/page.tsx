@@ -49,6 +49,7 @@ export default function ChatPage() {
   const [chatMode, setChatMode] = useState<ChatMode>("stream");
   const bottomRef = useRef<HTMLDivElement>(null);
   const activeRunRef = useRef(0);
+  const comparisonFinishedRef = useRef(new Map<number, Set<ComparisonSideKey>>());
 
   useEffect(() => {
     if (!localStorage.getItem("token")) router.push("/login");
@@ -89,6 +90,7 @@ export default function ChatPage() {
     }
 
     if (submittedMode === "compare") {
+      comparisonFinishedRef.current.set(runId, new Set());
       setMessages((prev) => [
         ...prev,
         {
@@ -98,7 +100,7 @@ export default function ChatPage() {
           comparison: createComparisonRun(runId, query),
         },
       ]);
-      runComparison(query, token, runId);
+      void runComparison(query, token, runId);
       return;
     }
 
@@ -148,11 +150,14 @@ export default function ChatPage() {
             });
             setLoading(false);
           },
-          () => {
+          (notice) => {
             if (!isActiveRun(runId)) return;
             setMessages((prev) => {
               const next = [...prev];
-              next[next.length - 1] = { ...next[next.length - 1], content: "" };
+              next[next.length - 1] = {
+                ...next[next.length - 1],
+                content: next[next.length - 1].content + notice,
+              };
               return next;
             });
           }
@@ -191,11 +196,14 @@ export default function ChatPage() {
           });
           setLoading(false);
         },
-        () => {
+        (notice) => {
           if (!isActiveRun(runId)) return;
           setMessages((prev) => {
             const next = [...prev];
-            next[next.length - 1] = { ...next[next.length - 1], content: "" };
+            next[next.length - 1] = {
+              ...next[next.length - 1],
+              content: next[next.length - 1].content + notice,
+            };
             return next;
           });
         }
@@ -287,9 +295,10 @@ export default function ChatPage() {
     router.push("/login");
   }
 
-  function runComparison(query: string, token: string, runId: number) {
-    void runComparisonStream(query, token, runId);
-    void runComparisonAgent(query, token, runId);
+  async function runComparison(query: string, token: string, runId: number) {
+    await runComparisonStream(query, token, runId);
+    if (!isActiveRun(runId)) return;
+    await runComparisonAgent(query, token, runId);
   }
 
   async function runComparisonStream(query: string, token: string, runId: number) {
@@ -311,9 +320,11 @@ export default function ChatPage() {
           if (!isActiveRun(runId)) return;
           finishComparisonSide(runId, "stream", { loading: false });
         },
-        () => {
+        (notice) => {
           if (!isActiveRun(runId)) return;
-          updateComparisonSide(runId, "stream", { content: "" });
+          updateComparisonSide(runId, "stream", (side) => ({
+            content: `${side.content}${notice}`,
+          }));
         }
       );
     } catch (err) {
@@ -353,9 +364,11 @@ export default function ChatPage() {
           if (!isActiveRun(runId)) return;
           finishComparisonSide(runId, "agent", { loading: false });
         },
-        () => {
+        (notice) => {
           if (!isActiveRun(runId)) return;
-          updateComparisonSide(runId, "agent", { content: "" });
+          updateComparisonSide(runId, "agent", (side) => ({
+            content: `${side.content}${notice}`,
+          }));
         }
       );
     } catch (err) {
@@ -404,7 +417,6 @@ export default function ChatPage() {
     sideKey: ComparisonSideKey,
     patch: Partial<ComparisonSide>
   ) {
-    let comparisonComplete = false;
     setMessages((prev) =>
       prev.map((msg) => {
         if (msg.comparison?.runId !== runId) return msg;
@@ -416,16 +428,19 @@ export default function ChatPage() {
             ...patch,
           },
         };
-        comparisonComplete =
-          !updatedComparison.stream.loading && !updatedComparison.agent.loading;
         return {
           ...msg,
           comparison: updatedComparison,
         };
       })
     );
-    if (comparisonComplete && isActiveRun(runId)) {
+
+    const finishedSides = comparisonFinishedRef.current.get(runId) ?? new Set<ComparisonSideKey>();
+    finishedSides.add(sideKey);
+    comparisonFinishedRef.current.set(runId, finishedSides);
+    if (finishedSides.size === 2 && isActiveRun(runId)) {
       setLoading(false);
+      comparisonFinishedRef.current.delete(runId);
     }
   }
 

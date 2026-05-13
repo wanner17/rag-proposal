@@ -1,5 +1,6 @@
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "/api";
 const INCOMPLETE_RETRY_NOTICE = "※ 답변이 너무 짧아 번호 목록 형식으로 다시 생성합니다.";
+const STREAM_RETRY_SEPARATOR = "\n\n---\n\n";
 
 export class UnauthorizedError extends Error {
   constructor(message = "인증이 만료되었습니다. 다시 로그인해 주세요.") {
@@ -31,7 +32,7 @@ export async function chatStream(
   onSource: (sources: Source[]) => void,
   onToken: (token: string) => void,
   onDone: () => void,
-  onReset?: () => void
+  onRetry?: (notice: string) => void
 ) {
   const res = await fetch(`${API_BASE}/chat/stream`, {
     method: "POST",
@@ -57,7 +58,7 @@ export async function chatStream(
     }
     const data = JSON.parse(payload);
     if (data.sources) onSource(data.sources);
-    if (data.token) handleStreamToken(data.token, onToken, onReset);
+    if (data.token) handleStreamToken(data.token, onToken, onRetry);
     return false;
   };
 
@@ -83,7 +84,7 @@ export async function agentStream(
   onToken: (token: string) => void,
   onMetadata: (metadata: AgentWorkflowMetadata) => void,
   onDone: () => void,
-  onReset?: () => void
+  onRetry?: (notice: string) => void
 ) {
   const res = await fetch(`${API_BASE}/agent/stream`, {
     method: "POST",
@@ -110,7 +111,7 @@ export async function agentStream(
     }
     const data = JSON.parse(payload);
     if (data.sources) onSource(data.sources);
-    if (data.token) handleStreamToken(data.token, onToken, onReset);
+    if (data.token) handleStreamToken(data.token, onToken, onRetry);
     if (data.metadata) onMetadata(data.metadata);
     return false;
   };
@@ -133,7 +134,7 @@ export async function agentStream(
 function handleStreamToken(
   token: string,
   onToken: (token: string) => void,
-  onReset?: () => void
+  onRetry?: (notice: string) => void
 ) {
   const markerIndex = token.indexOf(INCOMPLETE_RETRY_NOTICE);
   if (markerIndex < 0) {
@@ -141,7 +142,9 @@ function handleStreamToken(
     return;
   }
 
-  onReset?.();
+  const prefix = token.slice(0, markerIndex);
+  if (prefix) onToken(prefix);
+  onRetry?.(`${STREAM_RETRY_SEPARATOR}${INCOMPLETE_RETRY_NOTICE}\n\n`);
   const remainingToken = token.slice(markerIndex + INCOMPLETE_RETRY_NOTICE.length).trimStart();
   if (remainingToken) onToken(remainingToken);
 }

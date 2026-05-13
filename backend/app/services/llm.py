@@ -34,6 +34,7 @@ CHUNK_TEXT_LIMIT = 1200
 COMPACT_CHUNK_TEXT_LIMIT = 700
 COMPACT_CHUNK_COUNT = 3
 LLM_RETRY_DELAYS = (0.75, 1.5)
+MIN_COMPLETE_ANSWER_CHARS = 180
 
 LLM_UNAVAILABLE_MESSAGE = (
     "답변 생성 모델에 연결하지 못했습니다. "
@@ -61,6 +62,29 @@ def _build_messages(
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": f"참고 문서:\n{context}\n\n질문: {query} /no_think"},
     ]
+
+
+def _completion_retry_query(query: str) -> str:
+    return (
+        f"{query}\n\n"
+        "중요: 도입문 없이 바로 1. 2. 3. 번호 목록으로 답하라. "
+        "최소 3개 항목을 작성하고, 각 항목은 제목/근거 강도/설명/출처를 포함하라. "
+        "마지막은 반드시 '요약: 위 항목을 우선 반영하는 것이 적절합니다.'로 끝내라."
+    )
+
+
+def _looks_incomplete_answer(answer: str) -> bool:
+    normalized = answer.strip()
+    if not normalized:
+        return True
+    has_numbered_item = any(marker in normalized for marker in ("\n1.", "\n1)", "1. ", "1) "))
+    has_completion_marker = "요약:" in normalized or "더 자세한 항목을 지정해 다시 질문" in normalized
+    ends_like_intro = normalized.endswith(("다음과", "다음과 같습니다", "다음과 같습니다.", "정리하면 다음과 같습니다."))
+    return (
+        len(normalized) < MIN_COMPLETE_ANSWER_CHARS
+        or not has_numbered_item
+        or ends_like_intro
+    ) and not has_completion_marker
 
 
 async def _iter_stream_tokens(
@@ -145,11 +169,16 @@ async def generate_tokens(query: str, chunks: list[dict]) -> AsyncGenerator[str,
         try:
             async with httpx.AsyncClient(timeout=180.0) as client:
                 yielded = False
+                tokens = []
                 async for token in _iter_stream_tokens(client, query, chunks):
                     yielded = True
+                    tokens.append(token)
                     yield token
                 if not yielded:
                     yield LLM_UNAVAILABLE_MESSAGE
+                elif _looks_incomplete_answer("".join(tokens)):
+                    async for retry_token in _retry_incomplete_answer(query, chunks):
+                        yield retry_token
                 return
         except httpx.HTTPStatusError as exc:
             if exc.response.status_code >= 500 and attempt <= len(LLM_RETRY_DELAYS):
@@ -198,6 +227,12 @@ async def _compact_stream_tokens(query: str, chunks: list[dict]) -> AsyncGenerat
         yield LLM_UNAVAILABLE_MESSAGE
 
 
+async def _retry_incomplete_answer(query: str, chunks: list[dict]) -> AsyncGenerator[str, None]:
+    yield "\n\n※ 답변이 너무 짧아 번호 목록 형식으로 다시 생성합니다.\n\n"
+    async for token in _compact_stream_tokens(_completion_retry_query(query), chunks):
+        yield token
+
+
 async def generate(query: str, chunks: list[dict]) -> str:
     if not chunks:
         return "관련 문서를 찾지 못했습니다."
@@ -213,6 +248,9 @@ async def generate(query: str, chunks: list[dict]) -> str:
             content = choice["message"]["content"]
             if choice.get("finish_reason") == "length":
                 return f"{content}{OUTPUT_LIMIT_MESSAGE}"
+            if _looks_incomplete_answer(content):
+                retry = await _generate_from_compact_stream(_completion_retry_query(query), chunks)
+                return f"{content}\n\n※ 답변이 너무 짧아 번호 목록 형식으로 다시 생성했습니다.\n\n{retry}"
             return content
     except httpx.HTTPStatusError as exc:
         if exc.response.status_code >= 500:

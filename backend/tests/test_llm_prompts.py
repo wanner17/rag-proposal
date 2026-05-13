@@ -3,7 +3,7 @@ import json
 
 import httpx
 
-from app.services.llm import LLM_PARAMS, SYSTEM_PROMPT
+from app.services.llm import LLM_PARAMS, SYSTEM_PROMPT, _looks_incomplete_answer
 from app.services.llm import LLM_UNAVAILABLE_MESSAGE, generate, generate_stream
 from app.services.proposal_llm import PROPOSAL_SYSTEM_PROMPT
 
@@ -18,6 +18,16 @@ def test_chat_prompt_guides_complete_bounded_answers():
     assert "번호 목록과 짧은 bullet" in SYSTEM_PROMPT
     assert LLM_PARAMS["max_tokens"] >= 1800
     assert "더 자세한 항목을 지정해 다시 질문" in SYSTEM_PROMPT
+
+
+def test_incomplete_answer_detection_catches_intro_only_response():
+    assert _looks_incomplete_answer("공공기관 클라우드 전환 제안 전략은 다음과 같습니다.")
+    assert not _looks_incomplete_answer(
+        "1. 보안 전략\n- 근거 강도: 강함\n- 설명: 보안지침 준수를 우선 적용합니다.\n- 출처: a.pdf p1\n\n"
+        "2. DR 전략\n- 근거 강도: 중간\n- 설명: 장애 대응 계획을 별도 수립합니다.\n- 출처: b.pdf p2\n\n"
+        "3. 이행계획\n- 근거 강도: 강함\n- 설명: 단계별 의사결정 체계를 둡니다.\n- 출처: c.pdf p3\n\n"
+        "요약: 위 항목을 우선 반영하는 것이 적절합니다."
+    )
 
 
 def test_proposal_prompt_guides_complete_bounded_drafts():

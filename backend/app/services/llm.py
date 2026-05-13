@@ -25,9 +25,13 @@ SYSTEM_PROMPT = """당신은 업로드된 업무 문서를 분석하는 RAG 질�
 
 LLM_PARAMS = {
     "model": settings.LLM_MODEL,
-    "max_tokens": 3200,
+    "max_tokens": 1800,
     "temperature": 0.1,
 }
+COMPACT_LLM_PARAMS = {**LLM_PARAMS, "max_tokens": 1200}
+CHUNK_TEXT_LIMIT = 1200
+COMPACT_CHUNK_TEXT_LIMIT = 700
+COMPACT_CHUNK_COUNT = 3
 
 LLM_UNAVAILABLE_MESSAGE = (
     "답변 생성 모델에 연결하지 못했습니다. "
@@ -38,9 +42,18 @@ OUTPUT_LIMIT_MESSAGE = (
 )
 
 
-def _build_messages(query: str, chunks: list[dict]) -> list[dict]:
+def _truncate_text(text: str, limit: int) -> str:
+    if len(text) <= limit:
+        return text
+    return f"{text[:limit].rstrip()}\n...[근거 일부 생략]"
+
+
+def _build_messages(
+    query: str, chunks: list[dict], chunk_text_limit: int = CHUNK_TEXT_LIMIT
+) -> list[dict]:
     context = "\n\n---\n\n".join(
-        f"[출처: {c['file']} p{c['page']}]\n{c['text']}" for c in chunks
+        f"[출처: {c['file']} p{c['page']}]\n{_truncate_text(c['text'], chunk_text_limit)}"
+        for c in chunks
     )
     return [
         {"role": "system", "content": SYSTEM_PROMPT},
@@ -49,15 +62,19 @@ def _build_messages(query: str, chunks: list[dict]) -> list[dict]:
 
 
 async def _iter_stream_tokens(
-    client: httpx.AsyncClient, query: str, chunks: list[dict]
+    client: httpx.AsyncClient,
+    query: str,
+    chunks: list[dict],
+    params: dict | None = None,
+    chunk_text_limit: int = CHUNK_TEXT_LIMIT,
 ) -> AsyncGenerator[str, None]:
     async with client.stream(
         "POST",
         f"{settings.LLM_HOST}/chat/completions",
         json={
-            "messages": _build_messages(query, chunks),
+            "messages": _build_messages(query, chunks, chunk_text_limit),
             "stream": True,
-            **LLM_PARAMS,
+            **(params or LLM_PARAMS),
         },
     ) as resp:
         resp.raise_for_status()
@@ -86,8 +103,32 @@ async def _generate_from_stream(query: str, chunks: list[dict]) -> str:
             async for token in _iter_stream_tokens(client, query, chunks):
                 tokens.append(token)
             return "".join(tokens) or LLM_UNAVAILABLE_MESSAGE
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code >= 500:
+            logger.warning("LLM streaming fallback failed with %s; retrying compact request", exc.response.status_code)
+            return await _generate_from_compact_stream(query, chunks)
+        logger.exception("LLM streaming fallback failed")
+        return LLM_UNAVAILABLE_MESSAGE
     except httpx.HTTPError:
         logger.exception("LLM streaming fallback failed")
+        return LLM_UNAVAILABLE_MESSAGE
+
+
+async def _generate_from_compact_stream(query: str, chunks: list[dict]) -> str:
+    try:
+        async with httpx.AsyncClient(timeout=180.0) as client:
+            tokens = []
+            async for token in _iter_stream_tokens(
+                client,
+                query,
+                chunks[:COMPACT_CHUNK_COUNT],
+                COMPACT_LLM_PARAMS,
+                COMPACT_CHUNK_TEXT_LIMIT,
+            ):
+                tokens.append(token)
+            return "".join(tokens) or LLM_UNAVAILABLE_MESSAGE
+    except httpx.HTTPError:
+        logger.exception("LLM compact streaming request failed")
         return LLM_UNAVAILABLE_MESSAGE
 
 
@@ -104,8 +145,38 @@ async def generate_tokens(query: str, chunks: list[dict]) -> AsyncGenerator[str,
                 yield token
             if not yielded:
                 yield LLM_UNAVAILABLE_MESSAGE
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code >= 500:
+            logger.warning("LLM streaming token request failed with %s; retrying compact request", exc.response.status_code)
+            async for token in _compact_stream_tokens(query, chunks):
+                yield token
+            return
+        logger.exception("LLM streaming token request failed")
+        yield LLM_UNAVAILABLE_MESSAGE
     except httpx.HTTPError:
         logger.exception("LLM streaming token request failed")
+        yield LLM_UNAVAILABLE_MESSAGE
+
+
+async def _compact_stream_tokens(query: str, chunks: list[dict]) -> AsyncGenerator[str, None]:
+    try:
+        async with httpx.AsyncClient(timeout=180.0) as client:
+            yielded = False
+            async for token in _iter_stream_tokens(
+                client,
+                query,
+                chunks[:COMPACT_CHUNK_COUNT],
+                COMPACT_LLM_PARAMS,
+                COMPACT_CHUNK_TEXT_LIMIT,
+            ):
+                yielded = True
+                yield token
+            if yielded:
+                yield "\n\n※ LLM 서버 제한으로 상위 근거만 사용해 압축 답변했습니다."
+            else:
+                yield LLM_UNAVAILABLE_MESSAGE
+    except httpx.HTTPError:
+        logger.exception("LLM compact streaming token request failed")
         yield LLM_UNAVAILABLE_MESSAGE
 
 

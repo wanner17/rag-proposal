@@ -16,7 +16,7 @@ def test_chat_prompt_guides_complete_bounded_answers():
     assert "완결 가능한 핵심 내용" in SYSTEM_PROMPT
     assert "마크다운 표는 사용하지 말라" in SYSTEM_PROMPT
     assert "번호 목록과 짧은 bullet" in SYSTEM_PROMPT
-    assert LLM_PARAMS["max_tokens"] >= 3200
+    assert LLM_PARAMS["max_tokens"] >= 1800
     assert "더 자세한 항목을 지정해 다시 질문" in SYSTEM_PROMPT
 
 

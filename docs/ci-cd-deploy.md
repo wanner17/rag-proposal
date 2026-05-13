@@ -70,6 +70,7 @@ Do not commit `.env` or model files. The repository `.gitignore` excludes enviro
 The current production `docker-compose.yml` runs backend, Qdrant, and nginx containers. The frontend is intentionally not run by Docker Compose; it is built under `/opt/rag-proposal/frontend` and served by PM2 on host port `3000`.
 
 The nginx container proxies `/` to `host.docker.internal:3000`, so the PM2 frontend must stay available on port `3000`. It proxies `/api/` to the Docker backend service.
+By default the nginx container binds host port `80`. If another service already owns port `80`, set `NGINX_HTTP_PORT` in `/opt/rag-proposal/.env` to an available host port before deploying.
 
 The deployment workflow exports these frontend runtime/build values before `npm run build` and `pm2 reload`:
 

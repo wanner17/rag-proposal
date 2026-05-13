@@ -1,0 +1,79 @@
+name: Deploy to Linux Server
+
+on:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Pull, rebuild, and restart services
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          script_stop: true
+          script: |
+            set -Eeuo pipefail
+
+            echo "== Deployment target =="
+            hostname
+            whoami
+            date -Is
+
+            echo "== Checking required commands =="
+            command -v git
+            command -v docker
+            command -v node
+            command -v npm
+            command -v pm2
+            docker compose version
+
+            echo "== Entering project directory =="
+            cd /opt/rag-proposal
+            pwd
+
+            echo "== Checking server-only files =="
+            test -f .env
+            test -d /opt/models
+
+            echo "== Pulling latest main =="
+            git status --short
+            git pull origin main
+
+            echo "== Validating Docker Compose config =="
+            docker compose config --quiet
+
+            echo "== Preparing frontend environment =="
+            export NEXT_PUBLIC_API_URL="${NEXT_PUBLIC_API_URL:-/api}"
+            export NEXT_PUBLIC_RAG_ENABLED_PLUGINS="${NEXT_PUBLIC_RAG_ENABLED_PLUGINS:-proposal}"
+            export BACKEND_URL="${BACKEND_URL:-http://127.0.0.1:8088}"
+
+            echo "== Installing frontend dependencies =="
+            cd /opt/rag-proposal/frontend
+            npm ci
+
+            echo "== Building frontend =="
+            npm run build
+
+            echo "== Restarting frontend with PM2 =="
+            pm2 reload rag-proposal-frontend --update-env || pm2 start npm --name rag-proposal-frontend -- start
+            pm2 save
+
+            echo "== Rebuilding and restarting Docker Compose services =="
+            cd /opt/rag-proposal
+            docker compose down
+            docker compose up -d --build
+
+            echo "== Service status =="
+            docker compose ps
+            pm2 status rag-proposal-frontend

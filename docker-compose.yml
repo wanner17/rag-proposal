@@ -37,31 +37,16 @@ services:
     volumes:
       - ./volumes/documents:/app/documents     # 문서 업로드 저장소
 
-  frontend:
-    profiles: ["production"]
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    restart: unless-stopped
-    environment:
-      NEXT_PUBLIC_API_URL: /api
-      NEXT_PUBLIC_RAG_ENABLED_PLUGINS: proposal
-      BACKEND_URL: http://backend:8000
-    depends_on:
-      - backend
-    ports:
-      - "3000:3000"
-
   nginx:
-    profiles: ["production"]
     image: nginx:alpine    # arm64 지원
     restart: unless-stopped
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"   # nginx 컨테이너에서 호스트 PM2 frontend 접근
     ports:
       - "80:80"
     depends_on:
-      - frontend
       - backend
 
 volumes:

@@ -34,6 +34,7 @@ Create these secrets in GitHub:
 | Secret | Value |
 | --- | --- |
 | `SERVER_HOST` | Server IP or DNS name |
+| `SERVER_PORT` | SSH port, defaults to `22` when omitted |
 | `SERVER_USER` | SSH deployment user |
 | `SERVER_SSH_KEY` | Private SSH key for the deployment user |
 

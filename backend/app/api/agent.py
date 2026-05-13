@@ -1,4 +1,8 @@
+import json
+
 from fastapi import APIRouter, Depends
+from fastapi.encoders import jsonable_encoder
+from fastapi.responses import StreamingResponse
 
 from app.core.auth import get_current_user, resolve_department_scope
 from app.models.agent_schemas import (
@@ -8,7 +12,7 @@ from app.models.agent_schemas import (
     AgentWorkflowStep,
 )
 from app.models.schemas import UserInfo
-from app.services.agent_orchestration import run_agent_query
+from app.services.agent_orchestration import run_agent_query, stream_agent_query
 from app.services.agent_orchestration.types import AgentWorkflowInput
 from app.services.projects import get_default_project, get_project
 
@@ -55,3 +59,25 @@ async def query_agent(req: AgentQueryRequest, user: UserInfo = Depends(get_curre
             ],
         ),
     )
+
+
+@router.post("/stream")
+async def stream_agent(req: AgentQueryRequest, user: UserInfo = Depends(get_current_user)):
+    project = get_project(req.project_id) if req.project_id else get_default_project()
+    department = resolve_department_scope(user, req.department)
+    workflow_input = AgentWorkflowInput(
+        query=req.query,
+        department=department,
+        project_id=project.id,
+        project_slug=project.slug,
+        collection_name=project.rag_config.collection_name,
+        top_k=req.top_k or project.rag_config.top_k_default,
+        top_n=req.top_n or project.rag_config.top_n_default,
+    )
+
+    async def event_stream():
+        async for event in stream_agent_query(workflow_input):
+            yield f"data: {json.dumps(jsonable_encoder(event), ensure_ascii=False)}\n\n"
+        yield "data: [DONE]\n\n"
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")

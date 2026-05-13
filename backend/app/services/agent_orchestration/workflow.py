@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from time import perf_counter
-from typing import Any, NotRequired, TypedDict
+from typing import Any, AsyncGenerator, NotRequired, TypedDict
 from uuid import uuid4
 
 from fastapi import HTTPException, status
@@ -13,7 +13,7 @@ from app.services.agent_orchestration.types import (
     AgentWorkflowResult,
     AgentWorkflowTraceStep,
 )
-from app.services.llm import generate
+from app.services.llm import generate, generate_tokens
 from app.services.retrieval import ensure_collection, retrieve_with_critic
 from app.services.retrieval_critic import CriticResult
 
@@ -66,6 +66,54 @@ async def run_agent_query(workflow_input: AgentWorkflowInput) -> AgentWorkflowRe
         steps=state["steps"],
         critic_result=critic_result,
     )
+
+
+async def stream_agent_query(
+    workflow_input: AgentWorkflowInput,
+) -> AsyncGenerator[dict[str, Any], None]:
+    state: _AgentGraphState = {
+        "query": workflow_input.query,
+        "department": workflow_input.department,
+        "collection_name": workflow_input.collection_name,
+        "top_k": workflow_input.top_k,
+        "top_n": workflow_input.top_n,
+        "graph_run_id": str(uuid4()),
+        "project_id": workflow_input.project_id,
+        "project_slug": workflow_input.project_slug,
+        "steps": [],
+    }
+
+    state.update(await _prepare_context(state))
+    state.update(await _retrieve_evidence(state))
+
+    chunks = state.get("chunks", [])
+    if not chunks:
+        state.update(await _finalize_response(state))
+        yield {"sources": []}
+        yield {"token": state["answer"]}
+        yield {"metadata": _metadata_from_state(state)}
+        return
+
+    sources = [_source_from_chunk(chunk) for chunk in chunks]
+    yield {"sources": sources}
+
+    started = perf_counter()
+    tokens: list[str] = []
+    async for token in generate_tokens(state["query"], chunks):
+        tokens.append(token)
+        yield {"token": token}
+
+    state.update(
+        {
+            "answer": "".join(tokens),
+            "sources": sources,
+            "found": True,
+            "steps": state["steps"]
+            + [_step("generate_answer", started, source_count=len(sources), streamed=True)],
+        }
+    )
+    state.update(await _finalize_response(state))
+    yield {"metadata": _metadata_from_state(state)}
 
 
 def _build_graph():
@@ -195,3 +243,21 @@ def _step(name: str, started: float, **detail: Any) -> AgentWorkflowTraceStep:
         duration_ms=round((perf_counter() - started) * 1000, 3),
         detail=detail,
     )
+
+
+def _metadata_from_state(state: _AgentGraphState) -> dict[str, Any]:
+    critic_result = state.get("critic_result")
+    selected_pass = critic_result.selected.name if critic_result else None
+    retry_triggered = bool(critic_result and critic_result.retry is not None)
+    return {
+        "framework": "langgraph",
+        "graph_version": "agent-query-v1",
+        "graph_run_id": state["graph_run_id"],
+        "project_id": state["project_id"],
+        "project_slug": state["project_slug"],
+        "collection_name": state["collection_name"],
+        "selected_pass": selected_pass,
+        "retry_triggered": retry_triggered,
+        "fallback_used": False,
+        "steps": state["steps"],
+    }

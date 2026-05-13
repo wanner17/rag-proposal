@@ -74,6 +74,59 @@ export async function chatStream(
   onDone();
 }
 
+export async function agentStream(
+  query: string,
+  token: string,
+  onSource: (sources: Source[]) => void,
+  onToken: (token: string) => void,
+  onMetadata: (metadata: AgentWorkflowMetadata) => void,
+  onDone: () => void
+) {
+  const res = await fetch(`${API_BASE}/agent/stream`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ query }),
+  });
+
+  if (res.status === 401) throw new UnauthorizedError();
+  if (res.status === 404 || res.status === 503) throw new AgentUnavailableError();
+  if (!res.ok) throw new Error("요청 실패");
+  const reader = res.body!.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  const processEvent = (event: string) => {
+    const line = event.split("\n").find((item) => item.startsWith("data:"));
+    if (!line) return false;
+    const payload = line.slice(5).trim();
+    if (payload === "[DONE]") {
+      onDone();
+      return true;
+    }
+    const data = JSON.parse(payload);
+    if (data.sources) onSource(data.sources);
+    if (data.token) onToken(data.token);
+    if (data.metadata) onMetadata(data.metadata);
+    return false;
+  };
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const events = buffer.split("\n\n");
+    buffer = events.pop() ?? "";
+
+    for (const event of events) {
+      if (processEvent(event)) return;
+    }
+  }
+  if (buffer.trim() && processEvent(buffer)) return;
+  onDone();
+}
+
 export async function agentQuery(query: string, token: string) {
   const res = await fetch(`${API_BASE}/agent/query`, {
     method: "POST",

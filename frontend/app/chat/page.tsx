@@ -2,7 +2,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
-  agentQuery,
+  agentStream,
   AgentUnavailableError,
   chatStream,
   UnauthorizedError,
@@ -109,20 +109,46 @@ export default function ChatPage() {
 
     try {
       if (submittedMode === "agent") {
-        const response = await agentQuery(query, token);
-        if (!isActiveRun(runId)) return;
-        setMessages((prev) => {
-          const next = [...prev];
-          next[next.length - 1] = {
-            ...next[next.length - 1],
-            content: response.answer,
-            sources: response.sources,
-            streaming: false,
-            agentMetadata: response.metadata,
-          };
-          return next;
-        });
-        setLoading(false);
+        await agentStream(
+          query,
+          token,
+          (sources) => {
+            if (!isActiveRun(runId)) return;
+            setMessages((prev) => {
+              const next = [...prev];
+              next[next.length - 1] = { ...next[next.length - 1], sources };
+              return next;
+            });
+          },
+          (tok) => {
+            if (!isActiveRun(runId)) return;
+            setMessages((prev) => {
+              const next = [...prev];
+              next[next.length - 1] = {
+                ...next[next.length - 1],
+                content: next[next.length - 1].content + tok,
+              };
+              return next;
+            });
+          },
+          (metadata) => {
+            if (!isActiveRun(runId)) return;
+            setMessages((prev) => {
+              const next = [...prev];
+              next[next.length - 1] = { ...next[next.length - 1], agentMetadata: metadata };
+              return next;
+            });
+          },
+          () => {
+            if (!isActiveRun(runId)) return;
+            setMessages((prev) => {
+              const next = [...prev];
+              next[next.length - 1] = { ...next[next.length - 1], streaming: false };
+              return next;
+            });
+            setLoading(false);
+          }
+        );
         return;
       }
 
@@ -286,14 +312,28 @@ export default function ChatPage() {
 
   async function runComparisonAgent(query: string, token: string, runId: number) {
     try {
-      const response = await agentQuery(query, token);
-      if (!isActiveRun(runId)) return;
-      finishComparisonSide(runId, "agent", {
-        content: response.answer,
-        sources: response.sources,
-        agentMetadata: response.metadata,
-        loading: false,
-      });
+      await agentStream(
+        query,
+        token,
+        (sources) => {
+          if (!isActiveRun(runId)) return;
+          updateComparisonSide(runId, "agent", { sources });
+        },
+        (tok) => {
+          if (!isActiveRun(runId)) return;
+          updateComparisonSide(runId, "agent", (side) => ({
+            content: side.content + tok,
+          }));
+        },
+        (metadata) => {
+          if (!isActiveRun(runId)) return;
+          updateComparisonSide(runId, "agent", { agentMetadata: metadata });
+        },
+        () => {
+          if (!isActiveRun(runId)) return;
+          finishComparisonSide(runId, "agent", { loading: false });
+        }
+      );
     } catch (err) {
       if (!isActiveRun(runId)) return;
       if (err instanceof UnauthorizedError) {

@@ -135,6 +135,52 @@ def test_agent_query_endpoint_returns_metadata_contract(tmp_path, monkeypatch):
     ]
 
 
+def test_agent_stream_endpoint_returns_sse_events(tmp_path, monkeypatch):
+    from fastapi import FastAPI
+    import app.api.agent as agent_api
+
+    monkeypatch.setattr(settings, "PROJECT_DB_PATH", str(tmp_path / "projects.sqlite3"))
+
+    async def fake_stream_agent_query(workflow_input):
+        assert workflow_input.query == "클라우드 전환 전략"
+        yield {"sources": [{"file": "manual.pdf", "page": 3, "section": "개요", "score": 0.91}]}
+        yield {"token": "생성된 "}
+        yield {"token": "답변"}
+        yield {
+            "metadata": {
+                "framework": "langgraph",
+                "graph_version": "agent-query-v1",
+                "graph_run_id": "run-stream",
+                "project_id": "project-proposal-default",
+                "project_slug": "proposal-default",
+                "collection_name": "proposals",
+                "selected_pass": "initial",
+                "retry_triggered": False,
+                "fallback_used": False,
+                "steps": [],
+            }
+        }
+
+    monkeypatch.setattr(agent_api, "stream_agent_query", fake_stream_agent_query)
+    test_app = FastAPI()
+    test_app.include_router(agent_router, prefix="/api")
+    client = TestClient(test_app)
+
+    response = client.post(
+        "/api/agent/stream",
+        headers=_headers(),
+        json={"query": "클라우드 전환 전략"},
+    )
+
+    assert response.status_code == 200
+    body = response.text
+    assert 'data: {"sources":' in body
+    assert 'data: {"token": "생성된 "}' in body
+    assert 'data: {"token": "답변"}' in body
+    assert 'data: {"metadata":' in body
+    assert "data: [DONE]" in body
+
+
 def test_agent_query_uses_project_rag_config_and_user_department_scope(tmp_path, monkeypatch):
     from fastapi import FastAPI
     import app.api.agent as agent_api

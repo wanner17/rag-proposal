@@ -1,5 +1,6 @@
 import json
 import logging
+import asyncio
 import httpx
 from typing import AsyncGenerator
 from app.core.config import settings
@@ -32,6 +33,7 @@ COMPACT_LLM_PARAMS = {**LLM_PARAMS, "max_tokens": 1200}
 CHUNK_TEXT_LIMIT = 1200
 COMPACT_CHUNK_TEXT_LIMIT = 700
 COMPACT_CHUNK_COUNT = 3
+LLM_RETRY_DELAYS = (0.75, 1.5)
 
 LLM_UNAVAILABLE_MESSAGE = (
     "답변 생성 모델에 연결하지 못했습니다. "
@@ -137,25 +139,41 @@ async def generate_tokens(query: str, chunks: list[dict]) -> AsyncGenerator[str,
         yield "관련 문서를 찾지 못했습니다."
         return
 
-    try:
-        async with httpx.AsyncClient(timeout=180.0) as client:
-            yielded = False
-            async for token in _iter_stream_tokens(client, query, chunks):
-                yielded = True
-                yield token
-            if not yielded:
-                yield LLM_UNAVAILABLE_MESSAGE
-    except httpx.HTTPStatusError as exc:
-        if exc.response.status_code >= 500:
-            logger.warning("LLM streaming token request failed with %s; retrying compact request", exc.response.status_code)
-            async for token in _compact_stream_tokens(query, chunks):
-                yield token
+    for attempt, delay in enumerate((0.0, *LLM_RETRY_DELAYS), start=1):
+        if delay:
+            await asyncio.sleep(delay)
+        try:
+            async with httpx.AsyncClient(timeout=180.0) as client:
+                yielded = False
+                async for token in _iter_stream_tokens(client, query, chunks):
+                    yielded = True
+                    yield token
+                if not yielded:
+                    yield LLM_UNAVAILABLE_MESSAGE
+                return
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code >= 500 and attempt <= len(LLM_RETRY_DELAYS):
+                logger.warning(
+                    "LLM streaming token request failed with %s; retrying after %.2fs",
+                    exc.response.status_code,
+                    LLM_RETRY_DELAYS[attempt - 1],
+                )
+                continue
+            if exc.response.status_code >= 500:
+                logger.warning(
+                    "LLM streaming token request failed with %s after retries; retrying compact request",
+                    exc.response.status_code,
+                )
+                async for token in _compact_stream_tokens(query, chunks):
+                    yield token
+                return
+            logger.exception("LLM streaming token request failed")
+            yield LLM_UNAVAILABLE_MESSAGE
             return
-        logger.exception("LLM streaming token request failed")
-        yield LLM_UNAVAILABLE_MESSAGE
-    except httpx.HTTPError:
-        logger.exception("LLM streaming token request failed")
-        yield LLM_UNAVAILABLE_MESSAGE
+        except httpx.HTTPError:
+            logger.exception("LLM streaming token request failed")
+            yield LLM_UNAVAILABLE_MESSAGE
+            return
 
 
 async def _compact_stream_tokens(query: str, chunks: list[dict]) -> AsyncGenerator[str, None]:

@@ -22,7 +22,8 @@ nohup /opt/llama.cpp/build/bin/llama-server \
   --host 0.0.0.0 \
   --port 8080 \
   --n-gpu-layers 999 \
-  --ctx-size 8192 \
+  --ctx-size 16384 \
+  --parallel 2 \
   --threads 4 \
   --log-disable \
   > "$LOG_DIR/llamacpp.log" 2>&1 &

@@ -147,6 +147,14 @@ export default function ChatPage() {
               return next;
             });
             setLoading(false);
+          },
+          () => {
+            if (!isActiveRun(runId)) return;
+            setMessages((prev) => {
+              const next = [...prev];
+              next[next.length - 1] = { ...next[next.length - 1], content: "" };
+              return next;
+            });
           }
         );
         return;
@@ -182,6 +190,14 @@ export default function ChatPage() {
             return next;
           });
           setLoading(false);
+        },
+        () => {
+          if (!isActiveRun(runId)) return;
+          setMessages((prev) => {
+            const next = [...prev];
+            next[next.length - 1] = { ...next[next.length - 1], content: "" };
+            return next;
+          });
         }
       );
     } catch (err) {
@@ -294,6 +310,10 @@ export default function ChatPage() {
         () => {
           if (!isActiveRun(runId)) return;
           finishComparisonSide(runId, "stream", { loading: false });
+        },
+        () => {
+          if (!isActiveRun(runId)) return;
+          updateComparisonSide(runId, "stream", { content: "" });
         }
       );
     } catch (err) {
@@ -332,6 +352,10 @@ export default function ChatPage() {
         () => {
           if (!isActiveRun(runId)) return;
           finishComparisonSide(runId, "agent", { loading: false });
+        },
+        () => {
+          if (!isActiveRun(runId)) return;
+          updateComparisonSide(runId, "agent", { content: "" });
         }
       );
     } catch (err) {
@@ -505,7 +529,7 @@ export default function ChatPage() {
         </div>
         <div className="grid gap-4 lg:grid-cols-2">
           {renderComparisonSide("Basic · /api/chat/stream", comparison.stream, "stream")}
-          {renderComparisonSide("Agent · /api/agent/query", comparison.agent, "agent")}
+          {renderComparisonSide("Agent · /api/agent/stream", comparison.agent, "agent")}
         </div>
       </div>
     );

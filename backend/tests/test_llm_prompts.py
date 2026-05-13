@@ -3,7 +3,7 @@ import json
 
 import httpx
 
-from app.services.llm import LLM_PARAMS, SYSTEM_PROMPT, _looks_incomplete_answer
+from app.services.llm import LLM_PARAMS, SYSTEM_PROMPT, _looks_incomplete_answer, _requested_item_count
 from app.services.llm import LLM_UNAVAILABLE_MESSAGE, generate, generate_stream
 from app.services.proposal_llm import PROPOSAL_SYSTEM_PROMPT
 
@@ -31,6 +31,22 @@ def test_incomplete_answer_detection_catches_intro_only_response():
         "2. DR 전략\n- 근거 강도: 중간\n- 설명: 장애 대응 계획을 별도 수립합니다.\n- 출처: b.pdf p2\n\n"
         "3. 이행계획\n- 근거 강도: 강함\n- 설명: 단계별 의사결정 체계를 둡니다.\n- 출처: c.pdf p3\n\n"
         "요약: 위 항목을 우선 반영하는 것이 적절합니다."
+    )
+
+
+def test_completion_retry_preserves_requested_strategy_count():
+    query = (
+        "공공기관 클라우드 전환 제안서에서 보안, DR, 단계별 이행계획, "
+        "운영 조직, 장애 대응까지 포함해 제안 전략을 우선순위별로 정리해줘."
+    )
+
+    assert _requested_item_count(query) == 5
+    assert _looks_incomplete_answer(
+        "1. 보안\n근거 강도: 강함\n설명: 보안 기준을 반영합니다.\n\n"
+        "2. DR\n근거 강도: 약함\n설명: DR 근거는 보완이 필요합니다.\n\n"
+        "3. 이행계획\n근거 강도: 강함\n설명: 단계별 추진 체계를 반영합니다.\n\n"
+        "요약: 위 항목을 우선 반영하는 것이 적절합니다.",
+        query,
     )
 
 

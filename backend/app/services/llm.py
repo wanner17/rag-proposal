@@ -2,6 +2,7 @@ import json
 import logging
 import asyncio
 import httpx
+import re
 from typing import AsyncGenerator
 from app.core.config import settings
 
@@ -43,6 +44,8 @@ LLM_UNAVAILABLE_MESSAGE = (
 OUTPUT_LIMIT_MESSAGE = (
     "\n\n※ 출력 한도에 도달해 답변을 압축했습니다. 더 자세한 항목을 지정해 다시 질문해 주세요."
 )
+INCOMPLETE_RETRY_NOTICE = "※ 답변이 너무 짧아 번호 목록 형식으로 다시 생성합니다."
+RETRY_ITEM_KEYWORDS = ("보안", "DR", "재해", "단계별", "이행", "운영 조직", "장애 대응", "장애")
 
 
 def _truncate_text(text: str, limit: int) -> str:
@@ -64,29 +67,47 @@ def _build_messages(
     ]
 
 
+def _requested_item_count(query: str) -> int:
+    numbered_requests = re.findall(r"(?<!\d)([3-7])\s*개", query)
+    if numbered_requests:
+        return max(3, min(5, int(numbered_requests[-1])))
+
+    keyword_count = sum(1 for keyword in RETRY_ITEM_KEYWORDS if keyword in query)
+    if "DR" in query and "재해" in query:
+        keyword_count -= 1
+    if "장애 대응" in query and "장애" in query:
+        keyword_count -= 1
+    return max(3, min(5, keyword_count))
+
+
 def _completion_retry_query(query: str) -> str:
+    item_count = _requested_item_count(query)
     return (
         f"{query}\n\n"
-        "중요: 도입문 없이 바로 1. 2. 3. 번호 목록으로 답하라. "
-        "정확히 3개 항목만 작성하라. 각 항목은 3줄만 사용하라: "
+        f"중요: 도입문 없이 바로 1번부터 {item_count}번까지 번호 목록으로 답하라. "
+        f"정확히 {item_count}개 항목만 작성하라. 각 항목은 3줄만 사용하라: "
         "제목, 근거 강도, 한 문장 설명과 출처. "
         "마크다운 표와 긴 bullet을 쓰지 말라. "
         "마지막은 반드시 '요약: 위 항목을 우선 반영하는 것이 적절합니다.'로 끝내라."
     )
 
 
-def _looks_incomplete_answer(answer: str) -> bool:
+def _looks_incomplete_answer(answer: str, query: str | None = None) -> bool:
     normalized = answer.strip()
     if not normalized:
         return True
+    required_count = _requested_item_count(query) if query else 3
     numbered_count = sum(
-        1 for marker in ("1.", "1)", "2.", "2)", "3.", "3)") if marker in normalized
+        1
+        for index in range(1, required_count + 1)
+        for marker in (f"{index}.", f"{index})")
+        if marker in normalized
     )
     has_completion_marker = "요약:" in normalized or "더 자세한 항목을 지정해 다시 질문" in normalized
     ends_like_intro = normalized.endswith(("다음과", "다음과 같습니다", "다음과 같습니다.", "정리하면 다음과 같습니다."))
     return (
         len(normalized) < MIN_COMPLETE_ANSWER_CHARS
-        or numbered_count < 3
+        or numbered_count < required_count
         or not has_completion_marker
         or ends_like_intro
     )
@@ -185,7 +206,7 @@ async def generate_tokens(query: str, chunks: list[dict]) -> AsyncGenerator[str,
                     yield token
                 if not yielded:
                     yield LLM_UNAVAILABLE_MESSAGE
-                elif _looks_incomplete_answer("".join(tokens)):
+                elif _looks_incomplete_answer("".join(tokens), query):
                     async for retry_token in _retry_incomplete_answer(query, chunks):
                         yield retry_token
                 return
@@ -241,7 +262,7 @@ async def _compact_stream_tokens(query: str, chunks: list[dict]) -> AsyncGenerat
 
 
 async def _retry_incomplete_answer(query: str, chunks: list[dict]) -> AsyncGenerator[str, None]:
-    yield "\n\n※ 답변이 너무 짧아 번호 목록 형식으로 다시 생성합니다.\n\n"
+    yield f"\n\n{INCOMPLETE_RETRY_NOTICE}\n\n"
     async for token in _compact_stream_tokens(_completion_retry_query(query), chunks):
         yield token
 
@@ -261,9 +282,9 @@ async def generate(query: str, chunks: list[dict]) -> str:
             content = choice["message"]["content"]
             if choice.get("finish_reason") == "length":
                 return f"{content}{OUTPUT_LIMIT_MESSAGE}"
-            if _looks_incomplete_answer(content):
+            if _looks_incomplete_answer(content, query):
                 retry = await _generate_from_compact_stream(_completion_retry_query(query), chunks)
-                return f"{content}\n\n※ 답변이 너무 짧아 번호 목록 형식으로 다시 생성했습니다.\n\n{retry}"
+                return f"{INCOMPLETE_RETRY_NOTICE}\n\n{retry}"
             return content
     except httpx.HTTPStatusError as exc:
         if exc.response.status_code >= 500:

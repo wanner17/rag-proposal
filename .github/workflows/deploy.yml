@@ -23,6 +23,7 @@ jobs:
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
             set -Eeuo pipefail
+            trap 'echo "::error::Deployment failed at line $LINENO while running: $BASH_COMMAND"' ERR
 
             echo "== Deployment target =="
             hostname

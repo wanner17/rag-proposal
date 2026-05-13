@@ -1,3 +1,5 @@
+import type { AgentAnswerQualityReport } from "@/lib/api";
+
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "/api";
 
 export async function draftProposal(request: ProposalDraftRequest, token: string) {
@@ -46,6 +48,7 @@ export interface ProposalVariant {
   sources: ProposalSource[];
   warnings: string[];
   quality_summary?: string | null;
+  answer_quality?: AgentAnswerQualityReport | null;
 }
 
 export interface ProposalDraftResponse {

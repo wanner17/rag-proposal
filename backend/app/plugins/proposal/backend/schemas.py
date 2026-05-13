@@ -2,6 +2,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from app.models.agent_schemas import AgentAnswerQualityReport
+
 
 class ProposalDraftRequest(BaseModel):
     query: str | None = Field(default=None, max_length=2000)
@@ -32,6 +34,7 @@ class ProposalVariant(BaseModel):
     sources: list[ProposalSource]
     warnings: list[str] = []
     quality_summary: str | None = None
+    answer_quality: AgentAnswerQualityReport | None = None
 
 
 class ProposalDraftResponse(BaseModel):

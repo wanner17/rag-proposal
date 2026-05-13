@@ -1,5 +1,6 @@
-from uuid import uuid4
 import logging
+from dataclasses import asdict
+from uuid import uuid4
 
 from fastapi import APIRouter, Depends
 
@@ -12,6 +13,7 @@ from app.plugins.proposal.backend.schemas import (
     ProposalVariant,
 )
 from app.plugins.proposal.backend.services.proposal_llm import generate_proposal_draft
+from app.services.agent_orchestration.answer_quality import review_answer_quality
 from app.services.projects import get_default_project, get_project
 from app.services.retrieval import ensure_collection, retrieve_with_critic
 from app.services.retrieval_experiments import CandidateIdentity, quality_summary
@@ -55,6 +57,24 @@ def _proposal_source(chunk: dict) -> ProposalSource:
         rerank_score=chunk.get("rerank_score"),
         score_source=chunk.get("score_source", "unavailable"),
         department=chunk.get("department"),
+    )
+
+
+def _review_variant_answer_quality(query: str, draft_markdown: str, chunks: list[dict], critic_result):
+    if not draft_markdown:
+        return None
+    complete_critic_result = (
+        critic_result
+        if getattr(getattr(critic_result, "selected", None), "decision", None) is not None
+        else None
+    )
+    return asdict(
+        review_answer_quality(
+            query=query,
+            answer=draft_markdown,
+            chunks=chunks,
+            critic_result=complete_critic_result,
+        )
     )
 
 
@@ -160,6 +180,12 @@ async def draft_proposal(req: ProposalDraftRequest, user: UserInfo = Depends(get
         sources=sources,
         warnings=warnings,
         quality_summary=quality_summary(identity, identity, rerank_only=True),
+        answer_quality=_review_variant_answer_quality(
+            query,
+            draft_markdown,
+            reranked,
+            critic_result,
+        ),
     )
 
     return ProposalDraftResponse(

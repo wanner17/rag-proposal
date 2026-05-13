@@ -464,7 +464,67 @@ export default function ChatPage() {
     const runId = metadata.graph_run_id.slice(0, 8);
     const pass = metadata.selected_pass ?? "n/a";
     const retry = metadata.retry_triggered ? "retry on" : "retry off";
-    return `Agent · ${metadata.framework} · pass ${pass} · ${retry} · steps ${metadata.steps.length} · run ${runId}`;
+    const qa = metadata.answer_quality ? ` · QA ${metadata.answer_quality.status}` : "";
+    return `Agent · ${metadata.framework} · pass ${pass} · ${retry}${qa} · steps ${metadata.steps.length} · run ${runId}`;
+  }
+
+  function qualityStatusLabel(status: string) {
+    if (status === "passed") return "통과";
+    if (status === "issues_found") return "확인 필요";
+    return status;
+  }
+
+  function coverageStatusLabel(status: string) {
+    if (status === "covered") return "포함";
+    if (status === "missing") return "누락";
+    if (status === "unavailable") return "근거 없음";
+    return status;
+  }
+
+  function renderAnswerQualityReport(metadata?: AgentWorkflowMetadata) {
+    const report = metadata?.answer_quality;
+    if (!report) return null;
+
+    const issueCount = report.findings.length;
+    const coverageIssues = report.coverage.filter((item) => item.status !== "covered");
+    const claimSupport = report.evidence_sufficiency.claim_support;
+    const weakCount = claimSupport?.weak_count ?? 0;
+    const statusClass =
+      report.status === "passed"
+        ? "bg-emerald-50 text-emerald-700"
+        : "bg-amber-50 text-amber-700";
+
+    return (
+      <div className="mt-2 space-y-1 text-[11px] leading-5 text-gray-600">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className={`rounded-full px-2 py-0.5 font-medium ${statusClass}`}>
+            QA {qualityStatusLabel(report.status)}
+          </span>
+          <span className="rounded-full bg-gray-100 px-2 py-0.5">
+            이슈 {issueCount}
+          </span>
+          <span className="rounded-full bg-gray-100 px-2 py-0.5">
+            근거 약함 {weakCount}
+          </span>
+          <span className="rounded-full bg-gray-100 px-2 py-0.5">
+            보정 {report.revision_triggered ? report.revision_count : 0}
+          </span>
+        </div>
+        {coverageIssues.length > 0 && (
+          <div className="text-gray-500">
+            Coverage:{" "}
+            {coverageIssues
+              .map((item) => `${item.item} ${coverageStatusLabel(item.status)}`)
+              .join(", ")}
+          </div>
+        )}
+        {report.findings.length > 0 && (
+          <div className="text-gray-500">
+            {report.findings.slice(0, 2).map((finding) => finding.message).join(" / ")}
+          </div>
+        )}
+      </div>
+    );
   }
 
   function renderComparisonSide(
@@ -498,9 +558,12 @@ export default function ChatPage() {
           )}
         </div>
         {sideKey === "agent" && side.agentMetadata && (
-          <div className="mt-2 text-[11px] leading-5 text-gray-500">
-            {formatAgentMetadata(side.agentMetadata)}
-          </div>
+          <>
+            <div className="mt-2 text-[11px] leading-5 text-gray-500">
+              {formatAgentMetadata(side.agentMetadata)}
+            </div>
+            {renderAnswerQualityReport(side.agentMetadata)}
+          </>
         )}
         <div className="mt-3 text-xs font-medium text-gray-600">
           출처 {side.sources.length}개
@@ -631,9 +694,12 @@ export default function ChatPage() {
                     )}
                   </div>
                   {msg.agentMetadata && (
-                    <div className="mt-1 text-[11px] leading-5 text-gray-500">
-                      {formatAgentMetadata(msg.agentMetadata)}
-                    </div>
+                    <>
+                      <div className="mt-1 text-[11px] leading-5 text-gray-500">
+                        {formatAgentMetadata(msg.agentMetadata)}
+                      </div>
+                      {renderAnswerQualityReport(msg.agentMetadata)}
+                    </>
                   )}
                   {msg.sources && msg.sources.length > 0 && (
                     <div className="mt-2 space-y-1">

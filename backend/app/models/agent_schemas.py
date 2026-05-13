@@ -20,6 +20,23 @@ class AgentWorkflowStep(BaseModel):
     detail: dict[str, Any] = Field(default_factory=dict)
 
 
+class AgentAnswerQualityFinding(BaseModel):
+    category: str
+    severity: str
+    message: str
+    detail: dict[str, Any] = Field(default_factory=dict)
+
+
+class AgentAnswerQualityReport(BaseModel):
+    status: str
+    findings: list[AgentAnswerQualityFinding] = Field(default_factory=list)
+    coverage: list[dict[str, Any]] = Field(default_factory=list)
+    evidence_sufficiency: dict[str, Any] = Field(default_factory=dict)
+    revision_recommended: bool = False
+    revision_triggered: bool = False
+    revision_count: int = 0
+
+
 class AgentWorkflowMetadata(BaseModel):
     framework: str
     graph_version: str
@@ -31,6 +48,7 @@ class AgentWorkflowMetadata(BaseModel):
     retry_triggered: bool = False
     fallback_used: bool = False
     steps: list[AgentWorkflowStep] = Field(default_factory=list)
+    answer_quality: AgentAnswerQualityReport | None = None
 
 
 class AgentQueryResponse(BaseModel):

@@ -226,6 +226,41 @@ export interface AgentWorkflowStep {
   detail: Record<string, unknown>;
 }
 
+export interface AgentAnswerQualityFinding {
+  category: string;
+  severity: string;
+  message: string;
+  detail: Record<string, unknown>;
+}
+
+export type AgentCoverageStatus = "covered" | "missing" | "unavailable" | string;
+
+export interface AgentAnswerCoverageEntry {
+  item: string;
+  status: AgentCoverageStatus;
+  requested_aliases: string[];
+  answer_aliases: string[];
+  revision_recommended: boolean;
+}
+
+export interface AgentClaimSupport {
+  reviewed_count: number;
+  weak_count: number;
+  weak_claims: Record<string, unknown>[];
+}
+
+export interface AgentAnswerQualityReport {
+  status: string;
+  findings: AgentAnswerQualityFinding[];
+  coverage: AgentAnswerCoverageEntry[];
+  evidence_sufficiency: Record<string, unknown> & {
+    claim_support?: AgentClaimSupport;
+  };
+  revision_recommended: boolean;
+  revision_triggered: boolean;
+  revision_count: number;
+}
+
 export interface AgentWorkflowMetadata {
   framework: string;
   graph_version: string;
@@ -237,6 +272,7 @@ export interface AgentWorkflowMetadata {
   retry_triggered: boolean;
   fallback_used: boolean;
   steps: AgentWorkflowStep[];
+  answer_quality?: AgentAnswerQualityReport | null;
 }
 
 export interface AgentQueryResponse {

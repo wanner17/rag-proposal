@@ -60,6 +60,12 @@ def test_successful_proposal_response_shape(monkeypatch):
     assert data["variants"][0]["draft_markdown"].startswith("## 요약")
     assert data["variants"][0]["strategy"]
     assert data["variants"][0]["quality_summary"]
+    assert data["variants"][0]["answer_quality"]["status"] == "issues_found"
+    assert data["variants"][0]["answer_quality"]["revision_triggered"] is False
+    assert data["variants"][0]["answer_quality"]["revision_count"] == 0
+    assert data["variants"][0]["answer_quality"]["evidence_sufficiency"]["claim_support"][
+        "weak_count"
+    ] == 0
     assert data["shared_sources"][0]["point_id"] == "point-1"
     assert data["shared_sources"][0]["score_source"] == "rerank"
     assert data["shared_sources"][0]["retrieval_score"] == 0.76
@@ -217,4 +223,5 @@ def test_llm_failure_returns_partial_with_sources(monkeypatch):
     assert data["status"] == "partial"
     assert data["shared_sources"][0]["point_id"] == "point-1"
     assert "근거 문서는 찾았지만" in data["variants"][0]["draft_markdown"]
+    assert data["variants"][0]["answer_quality"]["revision_triggered"] is False
     assert data["warnings"]

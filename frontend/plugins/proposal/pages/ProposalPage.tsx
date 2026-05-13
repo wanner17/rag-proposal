@@ -402,6 +402,7 @@ function VariantSection({ variant, primary = false }: { variant: ProposalVariant
             <p className="mt-1 leading-6">{variant.quality_summary}</p>
           </div>
         )}
+        {variant.answer_quality && <ProposalQualitySignal variant={variant} />}
       </div>
 
       <div className="grid gap-5 p-6 xl:grid-cols-[1fr_300px]">
@@ -430,6 +431,54 @@ function VariantSection({ variant, primary = false }: { variant: ProposalVariant
       </div>
     </section>
   );
+}
+
+function ProposalQualitySignal({ variant }: { variant: ProposalVariant }) {
+  const report = variant.answer_quality;
+  if (!report) return null;
+
+  const coverageIssues = report.coverage.filter((item) => item.status !== "covered");
+  const weakCount = report.evidence_sufficiency.claim_support?.weak_count ?? 0;
+  const statusTone =
+    report.status === "passed"
+      ? "bg-emerald-50 text-emerald-700 border-emerald-100"
+      : "bg-amber-50 text-amber-800 border-amber-100";
+
+  return (
+    <div className={`mt-4 rounded-2xl border p-3 text-sm ${statusTone}`}>
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="font-medium">Answer QA {qualityStatusLabel(report.status)}</span>
+        <span className="rounded-full bg-white/70 px-2 py-0.5 text-xs">이슈 {report.findings.length}</span>
+        <span className="rounded-full bg-white/70 px-2 py-0.5 text-xs">근거 약함 {weakCount}</span>
+        <span className="rounded-full bg-white/70 px-2 py-0.5 text-xs">
+          보정 {report.revision_triggered ? report.revision_count : 0}
+        </span>
+      </div>
+      {coverageIssues.length > 0 && (
+        <p className="mt-2 text-xs leading-5">
+          Coverage: {coverageIssues.map((item) => `${item.item} ${coverageStatusLabel(item.status)}`).join(", ")}
+        </p>
+      )}
+      {report.findings.length > 0 && (
+        <p className="mt-2 text-xs leading-5">
+          {report.findings.slice(0, 2).map((finding) => finding.message).join(" / ")}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function qualityStatusLabel(status: string) {
+  if (status === "passed") return "통과";
+  if (status === "issues_found") return "확인 필요";
+  return status;
+}
+
+function coverageStatusLabel(status: string) {
+  if (status === "covered") return "포함";
+  if (status === "missing") return "누락";
+  if (status === "unavailable") return "근거 없음";
+  return status;
 }
 
 function ReviewChecklist({ sectionCount, sourceCount, warningCount }: { sectionCount: number; sourceCount: number; warningCount: number }) {

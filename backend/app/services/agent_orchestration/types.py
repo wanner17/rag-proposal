@@ -26,6 +26,25 @@ class AgentWorkflowTraceStep:
     detail: dict[str, Any] = field(default_factory=dict)
 
 
+@dataclass(frozen=True)
+class AnswerQualityFinding:
+    category: str
+    severity: str
+    message: str
+    detail: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class AnswerQualityReport:
+    status: str
+    findings: list[AnswerQualityFinding] = field(default_factory=list)
+    coverage: list[dict[str, Any]] = field(default_factory=list)
+    evidence_sufficiency: dict[str, Any] = field(default_factory=dict)
+    revision_recommended: bool = False
+    revision_triggered: bool = False
+    revision_count: int = 0
+
+
 @dataclass
 class AgentWorkflowResult:
     answer: str
@@ -39,3 +58,4 @@ class AgentWorkflowResult:
     fallback_used: bool = False
     steps: list[AgentWorkflowTraceStep] = field(default_factory=list)
     critic_result: CriticResult | None = None
+    answer_quality: AnswerQualityReport | None = None

@@ -12,7 +12,12 @@ from app.main import app
 from app.models.project_schemas import ProjectCreateRequest, ProjectRagConfig
 from app.models.schemas import Source
 from app.services.agent_orchestration import workflow
-from app.services.agent_orchestration.types import AgentWorkflowResult, AgentWorkflowTraceStep
+from app.services.agent_orchestration.types import (
+    AgentWorkflowResult,
+    AgentWorkflowTraceStep,
+    AnswerQualityFinding,
+    AnswerQualityReport,
+)
 from app.services.projects import create_project
 from app.services.retrieval_critic import CriticPass, CriticResult, assess_retrieval
 
@@ -96,6 +101,20 @@ def test_agent_query_endpoint_returns_metadata_contract(tmp_path, monkeypatch):
                     detail={"selected_pass": "initial", "result_count": 1},
                 )
             ],
+            answer_quality=AnswerQualityReport(
+                status="issues_found",
+                findings=[
+                    AnswerQualityFinding(
+                        category="source_attribution",
+                        severity="warning",
+                        message="출처 표시가 부족합니다.",
+                    )
+                ],
+                evidence_sufficiency={"available": True, "sufficient": True},
+                revision_recommended=True,
+                revision_triggered=False,
+                revision_count=0,
+            ),
         )
 
     monkeypatch.setattr(agent_api, "run_agent_query", fake_run_agent_query)
@@ -125,6 +144,11 @@ def test_agent_query_endpoint_returns_metadata_contract(tmp_path, monkeypatch):
     assert payload["metadata"]["selected_pass"] == "initial"
     assert payload["metadata"]["retry_triggered"] is False
     assert payload["metadata"]["fallback_used"] is False
+    assert payload["metadata"]["answer_quality"]["status"] == "issues_found"
+    assert payload["metadata"]["answer_quality"]["revision_recommended"] is True
+    assert payload["metadata"]["answer_quality"]["revision_triggered"] is False
+    assert payload["metadata"]["answer_quality"]["revision_count"] == 0
+    assert payload["metadata"]["answer_quality"]["findings"][0]["category"] == "source_attribution"
     assert payload["metadata"]["steps"] == [
         {
             "name": "retrieve_evidence",
@@ -157,6 +181,15 @@ def test_agent_stream_endpoint_returns_sse_events(tmp_path, monkeypatch):
                 "selected_pass": "initial",
                 "retry_triggered": False,
                 "fallback_used": False,
+                "answer_quality": {
+                    "status": "passed",
+                    "findings": [],
+                    "coverage": [],
+                    "evidence_sufficiency": {"available": True, "sufficient": True},
+                    "revision_recommended": False,
+                    "revision_triggered": False,
+                    "revision_count": 0,
+                },
                 "steps": [],
             }
         }
@@ -339,6 +372,8 @@ def test_graph_nodes_generate_answer_with_trace_metadata(monkeypatch):
         assert workflow._route_after_retrieval(state) == "generate_answer"
         generated = await workflow._generate_answer(state)
         state.update(generated)
+        reviewed = await workflow._review_answer_quality(state)
+        state.update(reviewed)
         finalized = await workflow._finalize_response(state)
         state.update(finalized)
 
@@ -352,6 +387,132 @@ def test_graph_nodes_generate_answer_with_trace_metadata(monkeypatch):
         "prepare_context",
         "retrieve_evidence",
         "generate_answer",
+        "review_answer_quality",
         "finalize_response",
     ]
     assert state["steps"][1].detail["selected_pass"] == "initial"
+    assert state["answer_quality"].status == "issues_found"
+    assert state["answer_quality"].revision_recommended is True
+    assert state["answer_quality"].revision_triggered is False
+    assert state["answer_quality"].revision_count == 0
+    assert state["answer"] == "생성된 답변"
+
+
+def test_agent_stream_reviews_accumulated_answer_and_preserves_tokens(monkeypatch):
+    chunks = [_chunk("보안과 DR 근거", 0.91)]
+
+    async def fake_ensure_collection(collection_name):
+        return None
+
+    async def fake_retrieve_with_critic(*args, **kwargs):
+        return _critic_result(chunks)
+
+    async def fake_generate_tokens(query, evidence):
+        assert evidence == chunks
+        yield "보안 "
+        yield "답변"
+
+    monkeypatch.setattr(workflow, "ensure_collection", fake_ensure_collection)
+    monkeypatch.setattr(workflow, "retrieve_with_critic", fake_retrieve_with_critic)
+    monkeypatch.setattr(workflow, "generate_tokens", fake_generate_tokens)
+
+    async def collect_events():
+        return [
+            event
+            async for event in workflow.stream_agent_query(
+                workflow.AgentWorkflowInput(
+                    query="보안과 DR 전략",
+                    department=None,
+                    collection_name="test-docs",
+                    top_k=20,
+                    top_n=5,
+                    project_id="project-test",
+                    project_slug="test",
+                )
+            )
+        ]
+
+    events = asyncio.run(collect_events())
+
+    assert events[0]["sources"][0].file == "manual.pdf"
+    assert [event["token"] for event in events if "token" in event] == ["보안 ", "답변"]
+    metadata = events[-1]["metadata"]
+    answer_quality = metadata["answer_quality"]
+    assert answer_quality["status"] == "issues_found"
+    assert answer_quality["revision_triggered"] is False
+    assert answer_quality["revision_count"] == 0
+    assert "review_answer_quality" in [step.name for step in metadata["steps"]]
+    assert answer_quality["coverage"] == [
+        {
+            "item": "보안",
+            "status": "covered",
+            "requested_aliases": ["보안"],
+            "answer_aliases": ["보안"],
+            "revision_recommended": False,
+        },
+        {
+            "item": "DR",
+            "status": "missing",
+            "requested_aliases": ["DR"],
+            "answer_aliases": [],
+            "revision_recommended": True,
+        },
+    ]
+
+
+def test_answer_quality_marks_requested_item_unavailable():
+    report = workflow.review_answer_quality(
+        query="보안과 DR 전략",
+        answer="보안은 확인됩니다. DR은 문서에서 확인되지 않음.",
+        chunks=[_chunk("보안 근거", 0.91)],
+        critic_result=_critic_result([_chunk("보안 근거", 0.91)]),
+    )
+
+    assert report.coverage == [
+        {
+            "item": "보안",
+            "status": "covered",
+            "requested_aliases": ["보안"],
+            "answer_aliases": ["보안"],
+            "revision_recommended": False,
+        },
+        {
+            "item": "DR",
+            "status": "unavailable",
+            "requested_aliases": ["DR"],
+            "answer_aliases": ["DR"],
+            "revision_recommended": False,
+        },
+    ]
+    assert report.revision_triggered is False
+    assert report.revision_count == 0
+    assert report.evidence_sufficiency["claim_support"]["weak_count"] == 0
+
+
+def test_answer_quality_flags_weakly_supported_claims():
+    report = workflow.review_answer_quality(
+        query="보안 전략",
+        answer="보안은 암호화 정책을 포함합니다. 위성 통신 계약은 10년입니다.",
+        chunks=[_chunk("보안 암호화 정책 근거", 0.91)],
+        critic_result=_critic_result([_chunk("보안 암호화 정책 근거", 0.91)]),
+    )
+
+    finding = next(
+        item for item in report.findings if item.category == "evidence_attribution"
+    )
+    assert finding.severity == "warning"
+    assert finding.detail["weak_claim_count"] == 1
+    assert finding.detail["weak_claims"][0]["text"] == "위성 통신 계약은 10년입니다."
+    assert report.evidence_sufficiency["claim_support"] == {
+        "reviewed_count": 2,
+        "weak_count": 1,
+        "weak_claims": [
+            {
+                "text": "위성 통신 계약은 10년입니다.",
+                "terms": ["10년입니다", "계약", "계약은", "위성", "통신"],
+            }
+        ],
+    }
+    assert report.revision_recommended is True
+    assert report.revision_triggered is False
+    assert report.revision_count == 0

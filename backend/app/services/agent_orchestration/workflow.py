@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import asdict
 from time import perf_counter
 from typing import Any, AsyncGenerator, NotRequired, TypedDict
 from uuid import uuid4
@@ -8,7 +9,9 @@ from uuid import uuid4
 from fastapi import HTTPException, status
 
 from app.models.schemas import Source
+from app.services.agent_orchestration.answer_quality import review_answer_quality
 from app.services.agent_orchestration.types import (
+    AnswerQualityReport,
     AgentWorkflowInput,
     AgentWorkflowResult,
     AgentWorkflowTraceStep,
@@ -36,6 +39,7 @@ class _AgentGraphState(TypedDict):
     sources: NotRequired[list[Source]]
     chunks: NotRequired[list[dict]]
     critic_result: NotRequired[CriticResult]
+    answer_quality: NotRequired[AnswerQualityReport]
     steps: list[AgentWorkflowTraceStep]
 
 
@@ -65,6 +69,7 @@ async def run_agent_query(workflow_input: AgentWorkflowInput) -> AgentWorkflowRe
         retry_triggered=retry_triggered,
         steps=state["steps"],
         critic_result=critic_result,
+        answer_quality=state.get("answer_quality"),
     )
 
 
@@ -112,6 +117,7 @@ async def stream_agent_query(
             + [_step("generate_answer", started, source_count=len(sources), streamed=True)],
         }
     )
+    state.update(await _review_answer_quality(state))
     state.update(await _finalize_response(state))
     yield {"metadata": _metadata_from_state(state)}
 
@@ -129,6 +135,7 @@ def _build_graph():
     graph.add_node("prepare_context", _prepare_context)
     graph.add_node("retrieve_evidence", _retrieve_evidence)
     graph.add_node("generate_answer", _generate_answer)
+    graph.add_node("review_answer_quality", _review_answer_quality)
     graph.add_node("finalize_response", _finalize_response)
     graph.set_entry_point("prepare_context")
     graph.add_edge("prepare_context", "retrieve_evidence")
@@ -140,7 +147,8 @@ def _build_graph():
             "finalize_response": "finalize_response",
         },
     )
-    graph.add_edge("generate_answer", "finalize_response")
+    graph.add_edge("generate_answer", "review_answer_quality")
+    graph.add_edge("review_answer_quality", "finalize_response")
     graph.add_edge("finalize_response", END)
     return graph.compile()
 
@@ -213,6 +221,29 @@ async def _generate_answer(state: _AgentGraphState) -> dict[str, Any]:
     }
 
 
+async def _review_answer_quality(state: _AgentGraphState) -> dict[str, Any]:
+    started = perf_counter()
+    report = review_answer_quality(
+        query=state["query"],
+        answer=state.get("answer", ""),
+        chunks=state.get("chunks", []),
+        critic_result=state.get("critic_result"),
+    )
+    step = _step(
+        "review_answer_quality",
+        started,
+        status=report.status,
+        finding_count=len(report.findings),
+        revision_recommended=report.revision_recommended,
+        revision_triggered=report.revision_triggered,
+        revision_count=report.revision_count,
+    )
+    return {
+        "answer_quality": report,
+        "steps": state["steps"] + [step],
+    }
+
+
 async def _finalize_response(state: _AgentGraphState) -> dict[str, Any]:
     started = perf_counter()
     found = state.get("found", False)
@@ -260,4 +291,11 @@ def _metadata_from_state(state: _AgentGraphState) -> dict[str, Any]:
         "retry_triggered": retry_triggered,
         "fallback_used": False,
         "steps": state["steps"],
+        "answer_quality": _answer_quality_metadata(state.get("answer_quality")),
     }
+
+
+def _answer_quality_metadata(report: AnswerQualityReport | None) -> dict[str, Any] | None:
+    if report is None:
+        return None
+    return asdict(report)

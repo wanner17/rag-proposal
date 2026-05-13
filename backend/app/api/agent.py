@@ -1,4 +1,5 @@
 import json
+from dataclasses import asdict
 
 from fastapi import APIRouter, Depends
 from fastapi.encoders import jsonable_encoder
@@ -57,6 +58,11 @@ async def query_agent(req: AgentQueryRequest, user: UserInfo = Depends(get_curre
                 )
                 for step in workflow_result.steps
             ],
+            answer_quality=(
+                asdict(workflow_result.answer_quality)
+                if workflow_result.answer_quality is not None
+                else None
+            ),
         ),
     )
 

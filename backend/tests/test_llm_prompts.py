@@ -3,7 +3,7 @@ import json
 
 import httpx
 
-from app.services.llm import SYSTEM_PROMPT
+from app.services.llm import LLM_PARAMS, SYSTEM_PROMPT
 from app.services.llm import LLM_UNAVAILABLE_MESSAGE, generate, generate_stream
 from app.services.proposal_llm import PROPOSAL_SYSTEM_PROMPT
 
@@ -14,6 +14,9 @@ def test_chat_prompt_guides_complete_bounded_answers():
     assert "출력 가능한 분량" in SYSTEM_PROMPT
     assert "다룰 범위를 내부적으로 정리" in SYSTEM_PROMPT
     assert "완결 가능한 핵심 내용" in SYSTEM_PROMPT
+    assert "마크다운 표는 사용하지 말라" in SYSTEM_PROMPT
+    assert "번호 목록과 짧은 bullet" in SYSTEM_PROMPT
+    assert LLM_PARAMS["max_tokens"] >= 3200
     assert "더 자세한 항목을 지정해 다시 질문" in SYSTEM_PROMPT
 
 

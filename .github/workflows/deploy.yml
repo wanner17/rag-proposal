@@ -85,6 +85,12 @@ jobs:
             cd /opt/rag-proposal/frontend
             npm ci
 
+            echo "== Cleaning previous frontend build =="
+            if ! rm -rf .next; then
+              echo "::error::Cannot remove /opt/rag-proposal/frontend/.next. Fix ownership with: sudo chown -R $(whoami):$(whoami) /opt/rag-proposal/frontend/.next"
+              exit 1
+            fi
+
             echo "== Building frontend =="
             npm run build
 

@@ -15,6 +15,15 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Check SSH reachability
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_PORT: ${{ secrets.SERVER_PORT || 22 }}
+        run: |
+          set -Eeuo pipefail
+          echo "Checking SSH reachability on port ${SERVER_PORT}"
+          nc -vz -w 10 "${SERVER_HOST}" "${SERVER_PORT}"
+
       - name: Deploy over SSH
         uses: appleboy/ssh-action@v1.2.5
         with:

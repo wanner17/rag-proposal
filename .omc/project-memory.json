@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "lastScanned": 1778457680785,
+  "lastScanned": 1778637522808,
   "projectRoot": "d:\\dev\\rag-proposal",
   "techStack": {
     "languages": [],
@@ -25,6 +25,7 @@
     "isMonorepo": false,
     "workspaces": [],
     "mainDirectories": [
+      "docs",
       "scripts"
     ],
     "gitBranches": {
@@ -38,17 +39,44 @@
       "path": "backend",
       "purpose": null,
       "fileCount": 2,
-      "lastAccessed": 1778457680747,
+      "lastAccessed": 1778637522773,
       "keyFiles": [
         "Dockerfile",
         "requirements.txt"
+      ]
+    },
+    "demo": {
+      "path": "demo",
+      "purpose": null,
+      "fileCount": 1,
+      "lastAccessed": 1778637522774,
+      "keyFiles": [
+        "proposal-scenarios.json"
+      ]
+    },
+    "deploy": {
+      "path": "deploy",
+      "purpose": null,
+      "fileCount": 0,
+      "lastAccessed": 1778637522775,
+      "keyFiles": []
+    },
+    "docs": {
+      "path": "docs",
+      "purpose": "Documentation",
+      "fileCount": 3,
+      "lastAccessed": 1778637522776,
+      "keyFiles": [
+        "ci-cd-deploy.md",
+        "modular-rag-migration.md",
+        "proposal-demo.md"
       ]
     },
     "embedding_service": {
       "path": "embedding_service",
       "purpose": null,
       "fileCount": 1,
-      "lastAccessed": 1778457680747,
+      "lastAccessed": 1778637522776,
       "keyFiles": [
         "app.py"
       ]
@@ -56,30 +84,37 @@
     "frontend": {
       "path": "frontend",
       "purpose": null,
-      "fileCount": 8,
-      "lastAccessed": 1778457680748,
+      "fileCount": 9,
+      "lastAccessed": 1778637522777,
       "keyFiles": [
         "Dockerfile",
+        "next-env.d.ts",
         "next.config.ts",
         "package-lock.json",
-        "package.json",
-        "postcss.config.mjs"
+        "package.json"
       ]
     },
     "nginx": {
       "path": "nginx",
       "purpose": null,
       "fileCount": 1,
-      "lastAccessed": 1778457680749,
+      "lastAccessed": 1778637522778,
       "keyFiles": [
         "nginx.conf"
       ]
+    },
+    "plugins": {
+      "path": "plugins",
+      "purpose": null,
+      "fileCount": 0,
+      "lastAccessed": 1778637522778,
+      "keyFiles": []
     },
     "reranker_service": {
       "path": "reranker_service",
       "purpose": null,
       "fileCount": 1,
-      "lastAccessed": 1778457680749,
+      "lastAccessed": 1778637522779,
       "keyFiles": [
         "app.py"
       ]
@@ -88,7 +123,7 @@
       "path": "scripts",
       "purpose": "Build/utility scripts",
       "fileCount": 5,
-      "lastAccessed": 1778457680750,
+      "lastAccessed": 1778637522779,
       "keyFiles": [
         "install_llamacpp.sh",
         "install_vllm.sh",
@@ -101,17 +136,28 @@
       "path": "backend\\app",
       "purpose": "Application code",
       "fileCount": 2,
-      "lastAccessed": 1778457680751,
+      "lastAccessed": 1778637522780,
       "keyFiles": [
         "main.py",
         "__init__.py"
+      ]
+    },
+    "backend\\tests": {
+      "path": "backend\\tests",
+      "purpose": "Test files",
+      "fileCount": 15,
+      "lastAccessed": 1778637522781,
+      "keyFiles": [
+        "conftest.py",
+        "test_agent_orchestration.py",
+        "test_candidate_reuse.py"
       ]
     },
     "frontend\\app": {
       "path": "frontend\\app",
       "purpose": "Application code",
       "fileCount": 3,
-      "lastAccessed": 1778457680752,
+      "lastAccessed": 1778637522783,
       "keyFiles": [
         "globals.css",
         "layout.tsx",
@@ -121,20 +167,30 @@
     "frontend\\components": {
       "path": "frontend\\components",
       "purpose": "UI components",
-      "fileCount": 1,
-      "lastAccessed": 1778457680753,
+      "fileCount": 2,
+      "lastAccessed": 1778637522783,
       "keyFiles": [
+        "AppNav.tsx",
         "SourceCard.tsx"
       ]
     },
     "frontend\\lib": {
       "path": "frontend\\lib",
       "purpose": "Library code",
-      "fileCount": 1,
-      "lastAccessed": 1778457680753,
+      "fileCount": 3,
+      "lastAccessed": 1778637522783,
       "keyFiles": [
-        "api.ts"
+        "api.ts",
+        "plugins.ts",
+        "projects.ts"
       ]
+    },
+    "frontend\\node_modules": {
+      "path": "frontend\\node_modules",
+      "purpose": "Dependencies",
+      "fileCount": 1,
+      "lastAccessed": 1778637522784,
+      "keyFiles": []
     }
   },
   "hotPaths": [

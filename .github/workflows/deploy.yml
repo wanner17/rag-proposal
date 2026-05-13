@@ -46,7 +46,12 @@ jobs:
             command -v docker
             command -v node
             command -v npm
-            command -v pm2
+            if ! command -v pm2; then
+              echo "::error::pm2 is not available for user $(whoami). Install it on the server with: sudo npm install -g pm2"
+              echo "PATH=$PATH"
+              npm config get prefix || true
+              exit 1
+            fi
             docker compose version
 
             echo "== Entering project directory =="
@@ -59,7 +64,14 @@ jobs:
 
             echo "== Pulling latest main =="
             git status --short
+            if git ls-files --error-unmatch .env >/dev/null 2>&1; then
+              cp .env /tmp/rag-proposal.env
+              git checkout -- .env
+            fi
             git pull origin main
+            if test -f /tmp/rag-proposal.env; then
+              mv /tmp/rag-proposal.env .env
+            fi
 
             echo "== Validating Docker Compose config =="
             docker compose config --quiet

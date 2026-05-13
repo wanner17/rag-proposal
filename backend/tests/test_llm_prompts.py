@@ -81,3 +81,56 @@ def test_generate_returns_error_message_on_llm_connection_failure(monkeypatch):
     answer = asyncio.run(generate("질문", [{"file": "a.pdf", "page": 1, "text": "근거"}]))
 
     assert answer == LLM_UNAVAILABLE_MESSAGE
+
+
+def test_generate_retries_with_streaming_when_non_stream_llm_returns_500(monkeypatch):
+    class FailingResponse:
+        status_code = 500
+
+        def raise_for_status(self):
+            request = httpx.Request("POST", "http://llm/chat/completions")
+            response = httpx.Response(500, request=request)
+            raise httpx.HTTPStatusError("server error", request=request, response=response)
+
+    class StreamingResponse:
+        def __init__(self):
+            self.lines = [
+                'data: {"choices":[{"delta":{"content":"재시도 "}}]}',
+                'data: {"choices":[{"delta":{"content":"성공"}}]}',
+                "data: [DONE]",
+            ]
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+        def raise_for_status(self):
+            return None
+
+        async def aiter_lines(self):
+            for line in self.lines:
+                yield line
+
+    class FallbackClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+        async def post(self, *args, **kwargs):
+            return FailingResponse()
+
+        def stream(self, *args, **kwargs):
+            return StreamingResponse()
+
+    monkeypatch.setattr("app.services.llm.httpx.AsyncClient", FallbackClient)
+
+    answer = asyncio.run(generate("질문", [{"file": "a.pdf", "page": 1, "text": "근거"}]))
+
+    assert answer == "재시도 성공"

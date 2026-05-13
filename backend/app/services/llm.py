@@ -1,7 +1,10 @@
 import json
+import logging
 import httpx
 from typing import AsyncGenerator
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 SYSTEM_PROMPT = """당신은 업로드된 업무 문서를 분석하는 RAG 질의응답 전문가다.
 제공된 참고 문서를 바탕으로 질문에 충실하고 상세하게 답변하라.
@@ -40,6 +43,46 @@ def _build_messages(query: str, chunks: list[dict]) -> list[dict]:
     ]
 
 
+async def _iter_stream_tokens(
+    client: httpx.AsyncClient, query: str, chunks: list[dict]
+) -> AsyncGenerator[str, None]:
+    async with client.stream(
+        "POST",
+        f"{settings.LLM_HOST}/chat/completions",
+        json={
+            "messages": _build_messages(query, chunks),
+            "stream": True,
+            **LLM_PARAMS,
+        },
+    ) as resp:
+        resp.raise_for_status()
+        async for line in resp.aiter_lines():
+            if not line.startswith("data:"):
+                continue
+            payload = line[5:].strip()
+            if payload == "[DONE]":
+                break
+            try:
+                data = json.loads(payload)
+                token = data["choices"][0]["delta"].get("content", "")
+                if token:
+                    yield token
+            except (KeyError, json.JSONDecodeError):
+                continue
+
+
+async def _generate_from_stream(query: str, chunks: list[dict]) -> str:
+    try:
+        async with httpx.AsyncClient(timeout=180.0) as client:
+            tokens = []
+            async for token in _iter_stream_tokens(client, query, chunks):
+                tokens.append(token)
+            return "".join(tokens) or LLM_UNAVAILABLE_MESSAGE
+    except httpx.HTTPError:
+        logger.exception("LLM streaming fallback failed")
+        return LLM_UNAVAILABLE_MESSAGE
+
+
 async def generate(query: str, chunks: list[dict]) -> str:
     if not chunks:
         return "관련 문서를 찾지 못했습니다."
@@ -52,7 +95,16 @@ async def generate(query: str, chunks: list[dict]) -> str:
             )
             resp.raise_for_status()
             return resp.json()["choices"][0]["message"]["content"]
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code >= 500:
+            logger.warning(
+                "LLM non-stream completion failed with %s; retrying with streaming completion",
+                exc.response.status_code,
+            )
+            return await _generate_from_stream(query, chunks)
+        return LLM_UNAVAILABLE_MESSAGE
     except httpx.HTTPError:
+        logger.exception("LLM completion request failed")
         return LLM_UNAVAILABLE_MESSAGE
 
 
@@ -65,30 +117,10 @@ async def generate_stream(query: str, chunks: list[dict]) -> AsyncGenerator[str,
 
     try:
         async with httpx.AsyncClient(timeout=180.0) as client:
-            async with client.stream(
-                "POST",
-                f"{settings.LLM_HOST}/chat/completions",
-                json={
-                    "messages": _build_messages(query, chunks),
-                    "stream": True,
-                    **LLM_PARAMS,
-                },
-            ) as resp:
-                resp.raise_for_status()
-                async for line in resp.aiter_lines():
-                    if not line.startswith("data:"):
-                        continue
-                    payload = line[5:].strip()
-                    if payload == "[DONE]":
-                        break
-                    try:
-                        data = json.loads(payload)
-                        token = data["choices"][0]["delta"].get("content", "")
-                        if token:
-                            yield f"data: {json.dumps({'token': token})}\n\n"
-                    except (KeyError, json.JSONDecodeError):
-                        continue
+            async for token in _iter_stream_tokens(client, query, chunks):
+                yield f"data: {json.dumps({'token': token})}\n\n"
     except httpx.HTTPError:
+        logger.exception("LLM streaming request failed")
         yield f"data: {json.dumps({'token': LLM_UNAVAILABLE_MESSAGE})}\n\n"
 
     yield "data: [DONE]\n\n"

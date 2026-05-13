@@ -22,6 +22,10 @@ def test_chat_prompt_guides_complete_bounded_answers():
 
 def test_incomplete_answer_detection_catches_intro_only_response():
     assert _looks_incomplete_answer("공공기관 클라우드 전환 제안 전략은 다음과 같습니다.")
+    assert _looks_incomplete_answer(
+        "1. 보안 관리\n- 근거 강도: 강함\n- 설명: 보안관리계획서와 보안확약서가 확인됩니다.\n\n"
+        "2. DR 계획"
+    )
     assert not _looks_incomplete_answer(
         "1. 보안 전략\n- 근거 강도: 강함\n- 설명: 보안지침 준수를 우선 적용합니다.\n- 출처: a.pdf p1\n\n"
         "2. DR 전략\n- 근거 강도: 중간\n- 설명: 장애 대응 계획을 별도 수립합니다.\n- 출처: b.pdf p2\n\n"

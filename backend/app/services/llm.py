@@ -68,7 +68,9 @@ def _completion_retry_query(query: str) -> str:
     return (
         f"{query}\n\n"
         "중요: 도입문 없이 바로 1. 2. 3. 번호 목록으로 답하라. "
-        "최소 3개 항목을 작성하고, 각 항목은 제목/근거 강도/설명/출처를 포함하라. "
+        "정확히 3개 항목만 작성하라. 각 항목은 3줄만 사용하라: "
+        "제목, 근거 강도, 한 문장 설명과 출처. "
+        "마크다운 표와 긴 bullet을 쓰지 말라. "
         "마지막은 반드시 '요약: 위 항목을 우선 반영하는 것이 적절합니다.'로 끝내라."
     )
 
@@ -77,14 +79,21 @@ def _looks_incomplete_answer(answer: str) -> bool:
     normalized = answer.strip()
     if not normalized:
         return True
-    has_numbered_item = any(marker in normalized for marker in ("\n1.", "\n1)", "1. ", "1) "))
+    numbered_count = sum(
+        1 for marker in ("1.", "1)", "2.", "2)", "3.", "3)") if marker in normalized
+    )
     has_completion_marker = "요약:" in normalized or "더 자세한 항목을 지정해 다시 질문" in normalized
     ends_like_intro = normalized.endswith(("다음과", "다음과 같습니다", "다음과 같습니다.", "정리하면 다음과 같습니다."))
     return (
         len(normalized) < MIN_COMPLETE_ANSWER_CHARS
-        or not has_numbered_item
+        or numbered_count < 3
+        or not has_completion_marker
         or ends_like_intro
-    ) and not has_completion_marker
+    )
+
+
+def _has_completion_marker(answer: str) -> bool:
+    return "요약:" in answer or "더 자세한 항목을 지정해 다시 질문" in answer
 
 
 async def _iter_stream_tokens(
@@ -209,6 +218,7 @@ async def _compact_stream_tokens(query: str, chunks: list[dict]) -> AsyncGenerat
     try:
         async with httpx.AsyncClient(timeout=180.0) as client:
             yielded = False
+            tokens = []
             async for token in _iter_stream_tokens(
                 client,
                 query,
@@ -217,8 +227,11 @@ async def _compact_stream_tokens(query: str, chunks: list[dict]) -> AsyncGenerat
                 COMPACT_CHUNK_TEXT_LIMIT,
             ):
                 yielded = True
+                tokens.append(token)
                 yield token
             if yielded:
+                if not _has_completion_marker("".join(tokens)):
+                    yield "\n\n요약: 위 항목을 우선 반영하는 것이 적절합니다."
                 yield "\n\n※ LLM 서버 제한으로 상위 근거만 사용해 압축 답변했습니다."
             else:
                 yield LLM_UNAVAILABLE_MESSAGE

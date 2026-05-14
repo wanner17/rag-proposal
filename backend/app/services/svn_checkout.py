@@ -47,7 +47,7 @@ async def _vpn_up() -> None:
     gateway = settings.SVN_VPN_GATEWAY
     logger.info(f"[VPN] connecting: {vpn_name}")
     # 1) ipsec up
-    await _run(["ipsec", "up", vpn_name])
+    await _run(["/usr/sbin/ipsec", "up", vpn_name])
     await asyncio.sleep(3)
     # 2) xl2tpd l2tp-control
     ctrl = "/var/run/xl2tpd/l2tp-control"
@@ -55,7 +55,7 @@ async def _vpn_up() -> None:
         f.write(f"c {vpn_name}\n")
     await asyncio.sleep(8)
     # 3) 라우팅: SVN 서버 IP → ppp0
-    await _run(["ip", "route", "replace", server_ip, "via", gateway, "dev", "ppp0"])
+    await _run(["/usr/sbin/ip", "route", "replace", server_ip, "via", gateway, "dev", "ppp0"])
     logger.info("[VPN] connected")
 
 
@@ -70,8 +70,8 @@ async def _vpn_down() -> None:
             f.write(f"d {vpn_name}\n")
     except Exception:
         pass
-    await _run(["ip", "route", "del", server_ip, "via", gateway, "dev", "ppp0"], check=False)
-    await _run(["ipsec", "down", vpn_name], check=False)
+    await _run(["/usr/sbin/ip", "route", "del", server_ip, "via", gateway, "dev", "ppp0"], check=False)
+    await _run(["/usr/sbin/ipsec", "down", vpn_name], check=False)
     logger.info("[VPN] disconnected")
 
 

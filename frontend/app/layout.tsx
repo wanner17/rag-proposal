@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="ko">
-      <body className="bg-gray-50 text-gray-900 antialiased">
+      <body className="bg-gray-50 text-gray-900 antialiased selection:bg-blue-100 selection:text-blue-900">
         <SidebarLayout>{children}</SidebarLayout>
       </body>
     </html>

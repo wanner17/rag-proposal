@@ -21,16 +21,16 @@ export default function SourceCard({ source, index }: { source: Source; index: n
         .join(" · ");
 
   return (
-    <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm">
-      <div className="flex items-center justify-between mb-1">
-        <span className="min-w-0 truncate font-medium text-blue-800">
+    <div className="group rounded-xl border border-gray-200 bg-white p-4 text-sm shadow-sm transition-all hover:border-blue-300 hover:shadow-md">
+      <div className="flex items-center justify-between mb-2 gap-3">
+        <span className="min-w-0 truncate font-semibold text-gray-900 transition-colors group-hover:text-blue-700">
           [{index + 1}] {title}
         </span>
-        <span className="ml-3 shrink-0 rounded-full bg-blue-200 px-2 py-0.5 text-xs text-blue-800">
+        <span className="inline-flex shrink-0 items-center rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-700/10">
           {scoreLabel}
         </span>
       </div>
-      <div className="text-xs text-gray-600">{detail}</div>
+      <div className="text-xs text-gray-500">{detail}</div>
     </div>
   );
 }

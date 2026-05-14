@@ -5,9 +5,9 @@ import { useRouter } from "next/navigation";
 import { navigationItems } from "@/lib/plugins";
 
 export default function AppNav({
-  className = "flex gap-3 text-sm",
-  linkClassName = "text-gray-500 hover:text-gray-700",
-  logoutClassName = "text-red-500 hover:text-red-700",
+  className = "flex items-center gap-4 text-sm font-medium",
+  linkClassName = "text-gray-600 transition-colors hover:text-gray-900",
+  logoutClassName = "text-red-600 transition-colors hover:text-red-800",
 }: {
   className?: string;
   linkClassName?: string;

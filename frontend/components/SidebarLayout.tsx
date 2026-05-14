@@ -21,7 +21,7 @@ export default function SidebarLayout({ children }: { children: React.ReactNode 
 
   return (
     <div className="flex min-h-screen bg-gray-50">
-      <Suspense fallback={<div className="w-56 shrink-0 min-h-screen bg-white border-r border-gray-200" />}>
+      <Suspense fallback={<div className="w-64 shrink-0 min-h-screen bg-white border-r border-gray-200 shadow-sm" />}>
         <SidebarWrapper />
       </Suspense>
       <main className="flex-1 min-w-0 overflow-auto">{children}</main>

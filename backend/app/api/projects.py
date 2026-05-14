@@ -18,6 +18,7 @@ from app.services.projects import (
     list_projects,
     update_project,
 )
+from app.services.retrieval import delete_project_source_chunks
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
@@ -51,7 +52,9 @@ async def update_project_api(
 
 @router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_project_api(project_id: str, _: UserInfo = Depends(require_admin)):
+    project = get_project(project_id)
     delete_project(project_id)
+    await delete_project_source_chunks(project.slug, collection_name=project.rag_config.collection_name)
 
 
 @router.get("/{project_id}/export")

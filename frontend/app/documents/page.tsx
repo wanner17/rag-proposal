@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   DocumentSearchHit,
@@ -13,7 +13,7 @@ import {
 
 type Status = "loading" | "idle" | "searching" | "error";
 
-export default function DocumentsPage() {
+function DocumentsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const projectSlug = searchParams.get("project");
@@ -234,4 +234,12 @@ function ErrorState({ message }: { message: string }) {
 function clamp(value: number, min: number, max: number) {
   if (Number.isNaN(value)) return min;
   return Math.min(max, Math.max(min, value));
+}
+
+export default function DocumentsPageWrapper() {
+  return (
+    <Suspense fallback={null}>
+      <DocumentsPage />
+    </Suspense>
+  );
 }

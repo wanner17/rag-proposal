@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   listProjects,
@@ -16,7 +16,7 @@ import {
 
 type IndexingPhase = "idle" | "running" | "done" | "error";
 
-export default function SourcePage() {
+function SourcePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const projectSlug = searchParams.get("project");
@@ -283,4 +283,12 @@ function Loading() {
 
 function ErrorMessage({ message }: { message: string }) {
   return <div className="p-8 text-sm text-red-500">{message}</div>;
+}
+
+export default function SourcePageWrapper() {
+  return (
+    <Suspense fallback={<Loading />}>
+      <SourcePage />
+    </Suspense>
+  );
 }

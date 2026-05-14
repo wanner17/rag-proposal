@@ -1,5 +1,5 @@
 "use client";
-import { useState, useRef, useEffect } from "react";
+import { Suspense, useState, useRef, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   agentStream,
@@ -41,7 +41,7 @@ interface Message {
   comparison?: ComparisonRun;
 }
 
-export default function ChatPage() {
+function ChatPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const projectSlugParam = searchParams.get("project");
@@ -869,5 +869,13 @@ export default function ChatPage() {
         </form>
       </footer>
     </div>
+  );
+}
+
+export default function ChatPageWrapper() {
+  return (
+    <Suspense fallback={null}>
+      <ChatPage />
+    </Suspense>
   );
 }

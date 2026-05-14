@@ -168,7 +168,7 @@ function SourcePage() {
         </div>
         <h2 className="text-base font-semibold text-gray-900 mb-1">저장소 내려받기</h2>
         <p className="text-sm text-gray-500 mb-4">
-          서버에 소스코드를 가져옵니다.{config?.vpn_required ? " (사내망 연결 포함)" : ""}
+          서버에 소스코드를 가져옵니다.
         </p>
 
         {checkoutState.status === "running" && (

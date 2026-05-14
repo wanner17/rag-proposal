@@ -60,7 +60,13 @@ async def run_checkout(project_slug: str, config: ProjectSourceConfig) -> None:
         asyncio.create_task(_poll_status(project_slug))
 
     except httpx.RequestError as exc:
-        msg = f"호스트 checkout-server 연결 실패: {exc}"
+        msg = (
+            "호스트 checkout-server 연결 실패: "
+            f"{settings.SVN_CHECKOUT_WEBHOOK_URL} 에 접속할 수 없습니다. "
+            "호스트에서 scripts/checkout-server.py가 8089 포트로 실행 중인지, "
+            "또는 SVN_CHECKOUT_WEBHOOK_URL 설정이 실제 주소와 맞는지 확인하세요. "
+            f"원인: {exc}"
+        )
         _set_status(project_slug, "error", msg, 0)
         logger.error(f"[SVN] {msg}")
 

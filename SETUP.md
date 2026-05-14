@@ -65,7 +65,34 @@ curl http://localhost:8002/health
 
 ---
 
-## 6단계: 동작 확인
+## 6단계: SVN 체크아웃 서버 시작
+
+소스코드 관리 화면의 "저장소 내려받기" 버튼은 백엔드 컨테이너에서 호스트의
+`SVN_CHECKOUT_WEBHOOK_URL`로 HTTP 요청을 보냅니다. 기본 주소는
+`http://host.docker.internal:8089`입니다.
+
+호스트에서 별도 터미널로 체크아웃 서버를 실행하세요.
+
+```bash
+cd /opt/rag-system
+export BACKEND_URL=http://127.0.0.1:8088
+export SOURCE_INDEX_API_TOKEN="<.env의 SOURCE_INDEX_API_TOKEN과 같은 값>"
+export SVN_USERNAME="<svn 계정>"
+export SVN_PASSWORD="<svn 비밀번호>"
+python3 scripts/checkout-server.py
+```
+
+연결 확인:
+
+```bash
+curl http://127.0.0.1:8089/status/test
+```
+
+응답이 `{"status": "idle" ...}` 형태로 나오면 웹 화면에서 체크아웃을 시작할 수 있습니다.
+
+---
+
+## 7단계: 동작 확인
 
 ```bash
 # 전체 헬스체크

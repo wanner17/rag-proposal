@@ -145,6 +145,8 @@ def _looks_incomplete_answer(answer: str, query: str | None = None) -> bool:
     )
     has_completion_marker = "요약:" in normalized or "더 자세한 항목을 지정해 다시 질문" in normalized
     ends_like_intro = normalized.endswith(("다음과", "다음과 같습니다", "다음과 같습니다.", "정리하면 다음과 같습니다."))
+    if has_completion_marker and not ends_like_intro:
+        return len(normalized) < MIN_COMPLETE_ANSWER_CHARS
     return (
         len(normalized) < MIN_COMPLETE_ANSWER_CHARS
         or numbered_count < required_count

@@ -16,7 +16,11 @@ async def chat(req: ChatRequest, user: UserInfo = Depends(get_current_user)):
     project = get_project(req.project_id) if req.project_id else get_default_project()
 
     critic_result = await retrieve_with_critic(
-        req.query, department=department, top_n=5, collection_name=project.rag_config.collection_name
+        req.query,
+        department=department,
+        top_k=project.rag_config.top_k_default,
+        top_n=project.rag_config.top_n_default,
+        collection_name=project.rag_config.collection_name,
     )
     chunks = critic_result.selected.reranked
 
@@ -48,7 +52,11 @@ async def chat_stream(req: ChatRequest, user: UserInfo = Depends(get_current_use
     project = get_project(req.project_id) if req.project_id else get_default_project()
 
     critic_result = await retrieve_with_critic(
-        req.query, department=department, top_n=5, collection_name=project.rag_config.collection_name
+        req.query,
+        department=department,
+        top_k=project.rag_config.top_k_default,
+        top_n=project.rag_config.top_n_default,
+        collection_name=project.rag_config.collection_name,
     )
     chunks = critic_result.selected.reranked
     sources = [

@@ -6,8 +6,6 @@ import { useRouter } from "next/navigation";
 import {
   createProject,
   deleteProject,
-  exportProject,
-  importProject,
   listProjects,
   Project,
   ProjectCreatePayload,
@@ -24,7 +22,6 @@ const EMPTY_FORM: ProjectCreatePayload = {
   rag_config: {
     top_k_default: 20,
     top_n_default: 5,
-    prompt_profile: "",
   },
   source_config: {
     enabled: false,
@@ -45,7 +42,6 @@ export default function ProjectAdminPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedId, setSelectedId] = useState<string>("");
   const [form, setForm] = useState<ProjectCreatePayload>(EMPTY_FORM);
-  const [bundle, setBundle] = useState("");
   const [status, setStatus] = useState("");
   const [loading, setLoading] = useState(true);
 
@@ -148,29 +144,6 @@ export default function ProjectAdminPage() {
     }
   }
 
-  async function handleExport() {
-    if (!selectedProject) return;
-    try {
-      const text = await exportProject(selectedProject.id, token);
-      setBundle(text);
-      setStatus("프로젝트 번들을 아래 편집기에 불러왔습니다.");
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : "내보내기에 실패했습니다.");
-    }
-  }
-
-  async function handleImport() {
-    if (!bundle.trim()) return;
-    try {
-      const result = await importProject(bundle, token);
-      setSelectedId(result.project.id);
-      setStatus(`"${result.project.name}" 프로젝트를 가져왔습니다.`);
-      await refresh();
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : "가져오기에 실패했습니다.");
-    }
-  }
-
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800">
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
@@ -228,29 +201,6 @@ export default function ProjectAdminPage() {
               </div>
             </section>
 
-            <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:shadow-md">
-              <h2 className="mb-3 text-lg font-bold text-slate-900">Export / Import</h2>
-              <textarea
-                value={bundle}
-                onChange={(event) => setBundle(event.target.value)}
-                className="min-h-48 w-full rounded-xl border-0 p-3 py-2 font-mono text-xs shadow-sm ring-1 ring-inset ring-slate-300 placeholder:text-slate-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600"
-                placeholder="내보낸 YAML/JSON 번들이 여기에 표시됩니다."
-              />
-              <div className="mt-3 flex gap-3">
-                <button
-                  onClick={handleExport}
-                  className="flex-1 rounded-lg bg-white px-3 py-2 text-sm font-semibold text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300 transition-colors hover:bg-slate-50"
-                >
-                  내보내기
-                </button>
-                <button
-                  onClick={handleImport}
-                  className="flex-1 rounded-lg bg-slate-900 px-3 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-slate-800"
-                >
-                  가져오기
-                </button>
-              </div>
-            </section>
           </aside>
 
           <main className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm lg:col-span-2">
@@ -312,15 +262,6 @@ export default function ProjectAdminPage() {
                       value={form.rag_config.top_n_default}
                       onChange={(top_n_default) =>
                         setForm({ ...form, rag_config: { ...form.rag_config, top_n_default } })
-                      }
-                    />
-                  </div>
-                  <div className="sm:col-span-2">
-                    <Field
-                      label="프롬프트 프로필"
-                      value={form.rag_config.prompt_profile ?? ""}
-                      onChange={(prompt_profile) =>
-                        setForm({ ...form, rag_config: { ...form.rag_config, prompt_profile } })
                       }
                     />
                   </div>
@@ -421,7 +362,7 @@ export default function ProjectAdminPage() {
                   type="submit"
                   className="rounded-xl bg-indigo-600 px-6 py-2.5 text-sm font-bold text-white shadow-sm transition-all hover:-translate-y-0.5 hover:bg-indigo-500 hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
                 >
-                  {selectedProject ? "수정 저장" : "프로젝트 생성"}
+                  {selectedProject ? "저장" : "프로젝트 생성"}
                 </button>
               </div>
             </form>

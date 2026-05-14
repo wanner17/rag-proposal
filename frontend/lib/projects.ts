@@ -11,7 +11,6 @@ export interface ProjectRagConfig {
   collection_name?: string | null;
   top_k_default: number;
   top_n_default: number;
-  prompt_profile?: string | null;
   storage_namespace?: string | null;
 }
 
@@ -99,23 +98,6 @@ export async function deleteProject(projectId: string, token: string) {
   if (!res.ok) throw new Error("프로젝트 삭제 실패");
 }
 
-export async function exportProject(projectId: string, token: string) {
-  const res = await fetch(`${API_BASE}/projects/${projectId}/export`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  if (!res.ok) throw new Error("프로젝트 내보내기 실패");
-  return res.text();
-}
-
-export async function importProject(bundle: string, token: string) {
-  const res = await fetch(`${API_BASE}/projects/import`, {
-    method: "POST",
-    headers: authHeaders(token),
-    body: JSON.stringify({ bundle }),
-  });
-  if (!res.ok) throw new Error("프로젝트 가져오기 실패");
-  return res.json() as Promise<{ project: Project; imported: boolean }>;
-}
 
 export interface CheckoutStatus {
   status: "idle" | "running" | "done" | "error" | "started";

@@ -43,7 +43,7 @@ def test_qdrant_collection_default_is_documented_compatibility_value(monkeypatch
 
     settings = Settings(_env_file=None)
 
-    assert DEFAULT_RAG_COLLECTION == "proposals"
+    assert DEFAULT_RAG_COLLECTION == "rag_data"
     assert settings.QDRANT_COLLECTION == DEFAULT_RAG_COLLECTION
 
 

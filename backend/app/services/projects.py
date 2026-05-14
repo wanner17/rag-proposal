@@ -95,58 +95,13 @@ def _row_to_project(row: sqlite3.Row) -> ProjectResponse:
     )
 
 
-def ensure_default_project() -> ProjectResponse:
-    with _connect() as conn:
-        row = conn.execute("SELECT * FROM projects WHERE slug = ?", (DEFAULT_PROJECT_SLUG,)).fetchone()
-        if row:
-            return _row_to_project(row)
-
-        now = _utc_now()
-        plugins = []
-        if "proposal" in _allowed_plugin_ids():
-            plugins = [ProjectPluginBinding(plugin_id="proposal", enabled=True)]
-        rag = ProjectRagConfig(
-            collection_name=settings.QDRANT_COLLECTION,
-            top_k_default=20,
-            top_n_default=5,
-            prompt_profile="proposal-default",
-            storage_namespace=DEFAULT_PROJECT_SLUG,
-        )
-        conn.execute(
-            """
-            INSERT INTO projects (
-                id, slug, name, description, status, default_language,
-                plugins_json, rag_json, source_json, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                DEFAULT_PROJECT_ID,
-                DEFAULT_PROJECT_SLUG,
-                "기본 제안서 프로젝트",
-                "기존 제안서 플러그인 호환을 위한 기본 프로젝트",
-                "active",
-                "ko",
-                json.dumps([plugin.model_dump() for plugin in plugins], ensure_ascii=False),
-                json.dumps(rag.model_dump(), ensure_ascii=False),
-                json.dumps(ProjectSourceConfig().model_dump(), ensure_ascii=False),
-                now,
-                now,
-            ),
-        )
-        conn.commit()
-        row = conn.execute("SELECT * FROM projects WHERE id = ?", (DEFAULT_PROJECT_ID,)).fetchone()
-        return _row_to_project(row)
-
-
 def list_projects() -> list[ProjectResponse]:
-    ensure_default_project()
     with _connect() as conn:
         rows = conn.execute("SELECT * FROM projects ORDER BY created_at ASC").fetchall()
         return [_row_to_project(row) for row in rows]
 
 
 def get_project(project_id: str) -> ProjectResponse:
-    ensure_default_project()
     with _connect() as conn:
         row = conn.execute("SELECT * FROM projects WHERE id = ?", (project_id,)).fetchone()
         if not row:
@@ -155,7 +110,6 @@ def get_project(project_id: str) -> ProjectResponse:
 
 
 def get_project_by_slug(project_slug: str) -> ProjectResponse:
-    ensure_default_project()
     with _connect() as conn:
         row = conn.execute("SELECT * FROM projects WHERE slug = ?", (project_slug,)).fetchone()
         if not row:
@@ -164,7 +118,11 @@ def get_project_by_slug(project_slug: str) -> ProjectResponse:
 
 
 def get_default_project() -> ProjectResponse:
-    return ensure_default_project()
+    with _connect() as conn:
+        row = conn.execute("SELECT * FROM projects WHERE slug = ?", (DEFAULT_PROJECT_SLUG,)).fetchone()
+    if not row:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="기본 프로젝트가 없습니다. project_id를 명시하세요.")
+    return _row_to_project(row)
 
 
 def create_project(request: ProjectCreateRequest) -> ProjectResponse:

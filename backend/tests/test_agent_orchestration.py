@@ -78,6 +78,15 @@ def test_agent_query_endpoint_returns_metadata_contract(tmp_path, monkeypatch):
     import app.api.agent as agent_api
 
     monkeypatch.setattr(settings, "PROJECT_DB_PATH", str(tmp_path / "projects.sqlite3"))
+    default_project = create_project(
+        ProjectCreateRequest(
+            slug="proposal-default",
+            name="기본 제안서 프로젝트",
+            description="",
+            plugins=[],
+            rag_config=ProjectRagConfig(collection_name=settings.QDRANT_COLLECTION),
+        )
+    )
 
     async def fake_run_agent_query(workflow_input):
         assert workflow_input.query == "클라우드 전환 전략"
@@ -145,9 +154,9 @@ def test_agent_query_endpoint_returns_metadata_contract(tmp_path, monkeypatch):
     assert payload["metadata"]["framework"] == "langgraph"
     assert payload["metadata"]["graph_version"] == "agent-query-v1"
     assert payload["metadata"]["graph_run_id"] == "run-test"
-    assert payload["metadata"]["project_id"] == "project-proposal-default"
+    assert payload["metadata"]["project_id"] == default_project.id
     assert payload["metadata"]["project_slug"] == "proposal-default"
-    assert payload["metadata"]["collection_name"] == "proposals"
+    assert payload["metadata"]["collection_name"] == settings.QDRANT_COLLECTION
     assert payload["metadata"]["selected_pass"] == "initial"
     assert payload["metadata"]["retry_triggered"] is False
     assert payload["metadata"]["fallback_used"] is False
@@ -171,6 +180,15 @@ def test_agent_stream_endpoint_returns_sse_events(tmp_path, monkeypatch):
     import app.api.agent as agent_api
 
     monkeypatch.setattr(settings, "PROJECT_DB_PATH", str(tmp_path / "projects.sqlite3"))
+    create_project(
+        ProjectCreateRequest(
+            slug="proposal-default",
+            name="기본 제안서 프로젝트",
+            description="",
+            plugins=[],
+            rag_config=ProjectRagConfig(collection_name=settings.QDRANT_COLLECTION),
+        )
+    )
 
     async def fake_stream_agent_query(workflow_input):
         assert workflow_input.query == "클라우드 전환 전략"

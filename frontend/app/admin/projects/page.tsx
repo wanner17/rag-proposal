@@ -4,13 +4,17 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import {
+  CheckoutStatus,
   createProject,
   deleteProject,
   exportProject,
+  getCheckoutStatus,
   importProject,
   listProjects,
   Project,
   ProjectCreatePayload,
+  triggerCheckout,
+  triggerIncrementalIndex,
   updateProject,
 } from "@/lib/projects";
 
@@ -48,6 +52,8 @@ export default function ProjectAdminPage() {
   const [bundle, setBundle] = useState("");
   const [status, setStatus] = useState("");
   const [loading, setLoading] = useState(true);
+  const [checkoutStatus, setCheckoutStatus] = useState<CheckoutStatus | null>(null);
+  const [sourceLoading, setSourceLoading] = useState(false);
 
   const selectedProject = useMemo(
     () => projects.find((project) => project.id === selectedId) ?? null,
@@ -141,6 +147,51 @@ export default function ProjectAdminPage() {
       await refresh();
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "저장에 실패했습니다.");
+    }
+  }
+
+  useEffect(() => {
+    if (!selectedProject?.source_config?.enabled || !token) return;
+    void getCheckoutStatus(selectedProject.id, token).then(setCheckoutStatus).catch(() => {});
+  }, [selectedProject, token]);
+
+  async function handleCheckout() {
+    if (!selectedProject) return;
+    setSourceLoading(true);
+    try {
+      await triggerCheckout(selectedProject.id, token);
+      const poll = setInterval(() => {
+        void getCheckoutStatus(selectedProject.id, token).then((s) => {
+          setCheckoutStatus(s);
+          if (s.status === "done") {
+            clearInterval(poll);
+            void triggerIncrementalIndex(selectedProject.id, token)
+              .then(() => setStatus("체크아웃 완료, 첫 인덱스를 시작했습니다."))
+              .catch((e: unknown) => setStatus(e instanceof Error ? e.message : "첫 인덱스 실패"))
+              .finally(() => setSourceLoading(false));
+          } else if (s.status === "error") {
+            clearInterval(poll);
+            setStatus(`체크아웃 오류: ${s.message}`);
+            setSourceLoading(false);
+          }
+        });
+      }, 5000);
+    } catch (e) {
+      setStatus(e instanceof Error ? e.message : "체크아웃 실패");
+      setSourceLoading(false);
+    }
+  }
+
+  async function handleIncrementalIndex() {
+    if (!selectedProject) return;
+    setSourceLoading(true);
+    try {
+      await triggerIncrementalIndex(selectedProject.id, token);
+      setStatus("변경분 임베딩을 시작했습니다.");
+    } catch (e) {
+      setStatus(e instanceof Error ? e.message : "임베딩 실패");
+    } finally {
+      setSourceLoading(false);
     }
   }
 
@@ -379,16 +430,17 @@ export default function ProjectAdminPage() {
                     </div>
 
                     {sc.enabled && (
-                      <div className="grid grid-cols-1 gap-x-6 gap-y-8 sm:grid-cols-6">
-                        <div className="sm:col-span-3">
-                          <Field
-                            label="저장소 주소 (SVN URL)"
-                            value={sc.svn_url ?? ""}
-                            onChange={(v) => setSc({ svn_url: v })}
-                          />
-                        </div>
-                        <div className="sm:col-span-3">
-                           <Field
+                      <>
+                        <div className="grid grid-cols-1 gap-x-6 gap-y-8 sm:grid-cols-6">
+                          <div className="sm:col-span-3">
+                            <Field
+                              label="저장소 주소 (SVN URL)"
+                              value={sc.svn_url ?? ""}
+                              onChange={(v) => setSc({ svn_url: v })}
+                            />
+                          </div>
+                          <div className="sm:col-span-3">
+                            <Field
                               label="파일 저장 경로 (서버 절대경로)"
                               value={
                                 form.slug
@@ -398,8 +450,39 @@ export default function ProjectAdminPage() {
                               disabled
                               onChange={() => {}}
                             />
+                          </div>
                         </div>
-                      </div>
+                        {selectedProject && (
+                          <div className="flex items-center gap-3 pt-2">
+                            <button
+                              type="button"
+                              onClick={handleCheckout}
+                              disabled={
+                                checkoutStatus?.status === "done" ||
+                                checkoutStatus?.status === "running" ||
+                                sourceLoading
+                              }
+                              className="rounded-lg bg-white px-4 py-2 text-sm font-semibold text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                            >
+                              {checkoutStatus?.status === "running" ? "내려받는 중..." : "저장소 내려받기"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleIncrementalIndex}
+                              disabled={sourceLoading}
+                              className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-40"
+                            >
+                              변경분만 임베딩
+                            </button>
+                            {checkoutStatus && (
+                              <span className="text-xs text-slate-500">
+                                체크아웃: {checkoutStatus.status}
+                                {checkoutStatus.message ? ` — ${checkoutStatus.message}` : ""}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
                 );

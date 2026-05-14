@@ -52,6 +52,7 @@ Source = Annotated[DocumentSource | SourceCodeSource, Field(discriminator="sourc
 class ChatRequest(BaseModel):
     query: str = Field(..., min_length=1, max_length=1000)
     department: Optional[str] = None   # None이면 권한 내 전체 검색
+    project_id: Optional[str] = None
 
 
 class ChatResponse(BaseModel):
@@ -92,6 +93,7 @@ class DocumentSummary(BaseModel):
 class DocumentSearchRequest(BaseModel):
     query: str = Field(..., min_length=1, max_length=1000)
     top_k: int = Field(default=10, ge=1, le=50)
+    project_id: Optional[str] = None
 
 
 class DocumentSearchHit(BaseModel):

@@ -6,14 +6,11 @@ from app.core.config import settings
 from app.api import auth, chat, documents, ingest, projects, source_index
 from app.plugin_runtime import enabled_plugin_metadata, register_plugin_routers
 from app.services.retrieval import ensure_collection
-from app.services.projects import ensure_default_project
-
 logging.basicConfig(level=settings.LOG_LEVEL)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    ensure_default_project()
     await ensure_collection()
     yield
 

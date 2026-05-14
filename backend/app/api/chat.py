@@ -5,6 +5,7 @@ from app.models.schemas import ChatRequest, ChatResponse, DocumentSource, UserIn
 from app.core.auth import get_current_user, resolve_department_scope
 from app.services.retrieval import retrieve_with_critic
 from app.services.llm import generate, generate_stream
+from app.services.projects import get_project, get_default_project
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
@@ -12,8 +13,11 @@ router = APIRouter(prefix="/chat", tags=["chat"])
 @router.post("", response_model=ChatResponse)
 async def chat(req: ChatRequest, user: UserInfo = Depends(get_current_user)):
     department = resolve_department_scope(user, req.department)
+    project = get_project(req.project_id) if req.project_id else get_default_project()
 
-    critic_result = await retrieve_with_critic(req.query, department=department, top_n=5)
+    critic_result = await retrieve_with_critic(
+        req.query, department=department, top_n=5, collection_name=project.rag_config.collection_name
+    )
     chunks = critic_result.selected.reranked
 
     if not chunks:
@@ -41,8 +45,11 @@ async def chat(req: ChatRequest, user: UserInfo = Depends(get_current_user)):
 async def chat_stream(req: ChatRequest, user: UserInfo = Depends(get_current_user)):
     """SSE 스트리밍 엔드포인트. 먼저 검색하고 LLM 답변을 토큰 단위로 스트리밍."""
     department = resolve_department_scope(user, req.department)
+    project = get_project(req.project_id) if req.project_id else get_default_project()
 
-    critic_result = await retrieve_with_critic(req.query, department=department, top_n=5)
+    critic_result = await retrieve_with_critic(
+        req.query, department=department, top_n=5, collection_name=project.rag_config.collection_name
+    )
     chunks = critic_result.selected.reranked
     sources = [
         DocumentSource(

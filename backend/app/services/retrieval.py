@@ -211,6 +211,7 @@ async def delete_source_chunks(
 ) -> bool:
     client = get_client()
     target_collection = collection_name or settings.QDRANT_COLLECTION
+    await ensure_collection(target_collection)
     selector = FilterSelector(filter=_source_file_filter(project_slug, relative_path))
     await client.delete(
         collection_name=target_collection,
@@ -226,6 +227,7 @@ async def delete_project_source_chunks(
 ) -> bool:
     client = get_client()
     target_collection = collection_name or settings.QDRANT_COLLECTION
+    await ensure_collection(target_collection)
     selector = FilterSelector(filter=_source_filter(project_slug))
     await client.delete(
         collection_name=target_collection,

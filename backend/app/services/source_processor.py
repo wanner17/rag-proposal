@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import fnmatch
 import hashlib
+import uuid
 from pathlib import Path, PurePosixPath
 from typing import Literal
 
@@ -169,7 +170,8 @@ def _chunk_id(
 ) -> str:
     path_hash = hashlib.sha1(relative_path.encode("utf-8")).hexdigest()[:16]
     locator_hash = hashlib.sha1(chunk_locator.encode("utf-8")).hexdigest()[:16]
-    return f"source:{project_slug}:{path_hash}:{chunking_version}:{locator_hash}"
+    stable_key = f"source:{project_slug}:{path_hash}:{chunking_version}:{locator_hash}"
+    return str(uuid.uuid5(uuid.NAMESPACE_URL, stable_key))
 
 
 def _glob_match(relative_path: str, pattern: str) -> bool:

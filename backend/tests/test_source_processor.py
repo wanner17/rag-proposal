@@ -1,4 +1,5 @@
 from pathlib import Path
+from uuid import UUID
 
 import pytest
 
@@ -84,6 +85,7 @@ def test_chunk_source_file_returns_source_payloads_with_stable_ids(tmp_path):
     assert [chunk["chunk_id"] for chunk in chunks] == [
         chunk["chunk_id"] for chunk in repeated
     ]
+    UUID(chunks[0]["chunk_id"])
     assert chunks[0]["source_kind"] == "source_code"
     assert chunks[0]["project_slug"] == "manual-code"
     assert chunks[0]["relative_path"] == "src/App.java"

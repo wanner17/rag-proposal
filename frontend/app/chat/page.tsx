@@ -52,8 +52,6 @@ function ChatPage() {
   const [chatMode, setChatMode] = useState<ChatMode>("stream");
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState("");
-  const [retrievalScope, setRetrievalScope] = useState<RetrievalScope>("documents");
-  const [projectError, setProjectError] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
   const activeRunRef = useRef(0);
   const comparisonFinishedRef = useRef(new Map<number, Set<ComparisonSideKey>>());
@@ -71,17 +69,6 @@ function ChatPage() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  useEffect(() => {
-    if (retrievalScope !== "source_code") return;
-    const selected = projects.find((project) => project.id === selectedProjectId);
-    if (selected?.source_config.enabled) return;
-    const firstSourceProject = projects.find((project) => project.source_config.enabled);
-    if (firstSourceProject) {
-      setSelectedProjectId(firstSourceProject.id);
-      return;
-    }
-    setRetrievalScope("documents");
-  }, [projects, retrievalScope, selectedProjectId]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -89,8 +76,8 @@ function ChatPage() {
 
     const query = input.trim();
     const submittedProjectId = selectedProjectId || undefined;
-    const submittedScope = retrievalScope;
-    const submittedMode = submittedScope === "source_code" ? "agent" : chatMode;
+    const submittedScope: RetrievalScope = "documents";
+    const submittedMode = chatMode;
     const runId = activeRunRef.current + 1;
     activeRunRef.current = runId;
 
@@ -279,9 +266,8 @@ function ChatPage() {
         }
         return activeProjects[0]?.id || "";
       });
-      setProjectError("");
-    } catch (error) {
-      setProjectError(error instanceof Error ? error.message : "프로젝트 목록을 불러오지 못했습니다.");
+    } catch {
+      // silently ignore; sidebar already shows project context
     }
   }
 
@@ -680,7 +666,6 @@ function ChatPage() {
   }
 
   const selectedProject = projects.find((project) => project.id === selectedProjectId) ?? null;
-  const sourceProjects = projects.filter((project) => project.source_config?.enabled);
 
   return (
     <div className="flex h-screen max-w-6xl flex-col mx-auto">
@@ -688,9 +673,7 @@ function ChatPage() {
         <div className="min-w-0">
           <h1 className="text-lg font-bold text-blue-700">RAG 문서 검색 시스템</h1>
           {selectedProject && (
-            <p className="mt-0.5 text-xs text-gray-500">
-              {selectedProject.name} · {retrievalScope === "source_code" ? "소스코드" : "문서"}
-            </p>
+            <p className="mt-0.5 text-xs text-gray-500">{selectedProject.name}</p>
           )}
         </div>
         <div className="flex items-center gap-3">
@@ -721,7 +704,7 @@ function ChatPage() {
             </button>
             <button
               type="button"
-              disabled={loading || retrievalScope === "source_code"}
+              disabled={loading}
               onClick={() => setChatMode("compare")}
               className={`rounded-md px-3 py-1.5 transition ${
                 chatMode === "compare"
@@ -739,11 +722,7 @@ function ChatPage() {
           {authError}
         </div>
       )}
-      {projectError && (
-        <div className="border-b border-amber-100 bg-amber-50 px-6 py-2 text-sm text-amber-700">
-          {projectError}
-        </div>
-      )}
+
 
       <main className="flex-1 space-y-6 overflow-y-auto px-6 py-4">
         {messages.length === 0 && (
@@ -795,73 +774,17 @@ function ChatPage() {
       </main>
 
       <footer className="border-t bg-white px-6 py-4">
-        <div className="mb-3 grid gap-3 md:grid-cols-[minmax(180px,1fr)_auto]">
-          <label className="min-w-0 text-xs font-medium text-gray-600">
-            <span className="mb-1 block">프로젝트</span>
-            <select
-              value={selectedProjectId}
-              onChange={(event) => setSelectedProjectId(event.target.value)}
-              disabled={loading || projects.length === 0}
-              className="w-full rounded-lg border px-3 py-2 text-sm text-gray-800 disabled:bg-gray-100"
-            >
-              {projects.map((project) => (
-                <option key={project.id} value={project.id}>
-                  {project.name} ({project.slug})
-                </option>
-              ))}
-            </select>
-          </label>
-          <div className="text-xs font-medium text-gray-600">
-            <span className="mb-1 block">검색 범위</span>
-            <div className="flex rounded-lg border border-gray-200 bg-gray-50 p-1 text-sm">
-              <button
-                type="button"
-                disabled={loading}
-                onClick={() => setRetrievalScope("documents")}
-                className={`rounded-md px-3 py-1.5 transition ${
-                  retrievalScope === "documents"
-                    ? "bg-white text-blue-700 shadow-sm"
-                    : "text-gray-500 hover:text-gray-700"
-                } disabled:opacity-50`}
-              >
-                문서
-              </button>
-              <button
-                type="button"
-                disabled={loading || sourceProjects.length === 0}
-                onClick={() => {
-                  setRetrievalScope("source_code");
-                  setChatMode("agent");
-                  if (selectedProject && !selectedProject.source_config.enabled) {
-                    setSelectedProjectId(sourceProjects[0]?.id ?? selectedProject.id);
-                  }
-                }}
-                className={`rounded-md px-3 py-1.5 transition ${
-                  retrievalScope === "source_code"
-                    ? "bg-white text-blue-700 shadow-sm"
-                    : "text-gray-500 hover:text-gray-700"
-                } disabled:opacity-50`}
-              >
-                소스코드
-              </button>
-            </div>
-          </div>
-        </div>
         <form onSubmit={handleSubmit} className="flex gap-3">
           <input
             className="flex-1 rounded-xl border px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder={
-              retrievalScope === "source_code"
-                ? "선택한 프로젝트 소스코드에 대해 질문하세요..."
-                : "선택한 프로젝트 문서에 대해 질문하세요..."
-            }
+            placeholder="선택한 프로젝트 문서에 대해 질문하세요..."
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            disabled={loading || !selectedProjectId}
+            disabled={loading}
           />
           <button
             type="submit"
-            disabled={loading || !input.trim() || !selectedProjectId}
+            disabled={loading || !input.trim()}
             className="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-blue-700 disabled:opacity-40"
           >
             {loading ? "생성 중..." : "전송"}

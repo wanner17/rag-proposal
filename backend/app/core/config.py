@@ -1,7 +1,7 @@
 from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings
 
-DEFAULT_RAG_COLLECTION = "proposals"
+DEFAULT_RAG_COLLECTION = "rag_data"
 
 
 class Settings(BaseSettings):

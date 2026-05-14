@@ -21,7 +21,7 @@ export default function LoginPage() {
     try {
       const { access_token } = await login(username, password);
       localStorage.setItem("token", access_token);
-      router.push("/chat");
+      router.push("/projects");
     } catch {
       setError("아이디 또는 비밀번호가 올바르지 않습니다.");
     } finally {
@@ -32,7 +32,7 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center">
       <div className="bg-white rounded-2xl shadow-lg p-8 w-full max-w-sm">
-        <h1 className="text-2xl font-bold text-center mb-6">RAG 문서 플랫폼</h1>
+        <h1 className="text-2xl font-bold text-center mb-6">사내 RAG 플랫폼</h1>
         <form onSubmit={handleSubmit} className="space-y-4">
           <input
             className="w-full border rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"

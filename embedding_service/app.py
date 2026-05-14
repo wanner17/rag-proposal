@@ -4,10 +4,27 @@ from pydantic import BaseModel
 from sentence_transformers import SentenceTransformer
 import torch
 import logging
+import re
+import unicodedata
 
 logger = logging.getLogger(__name__)
 
 model: SentenceTransformer | None = None
+
+MAX_TEXT_LENGTH = 8192
+MAX_TEXTS_PER_REQUEST = 256
+
+
+def sanitize_text(text: str) -> str:
+    # 제어문자 제거 (탭·개행 제외)
+    text = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", " ", text)
+    # 유효하지 않은 유니코드 대체문자 제거
+    text = "".join(
+        c for c in text if unicodedata.category(c) != "Cs"
+    )
+    # 연속 공백 압축
+    text = re.sub(r" {2,}", " ", text).strip()
+    return text
 
 
 @asynccontextmanager
@@ -44,13 +61,35 @@ async def embed(req: EmbedRequest):
         raise HTTPException(status_code=503, detail="모델 로딩 중")
     if not req.texts:
         raise HTTPException(status_code=400, detail="texts가 비어있음")
+    if len(req.texts) > MAX_TEXTS_PER_REQUEST:
+        raise HTTPException(
+            status_code=400,
+            detail=f"texts 개수 초과 (최대 {MAX_TEXTS_PER_REQUEST}개)",
+        )
 
-    embeddings = model.encode(
-        req.texts,
-        normalize_embeddings=True,
-        batch_size=32,
-        show_progress_bar=False,
-    )
+    cleaned = []
+    for i, text in enumerate(req.texts):
+        if not isinstance(text, str):
+            raise HTTPException(status_code=400, detail=f"texts[{i}] 문자열 아님")
+        text = sanitize_text(text)
+        if not text:
+            text = " "  # 빈 텍스트는 공백으로 대체 (encode 오류 방지)
+        if len(text) > MAX_TEXT_LENGTH:
+            logger.warning(f"texts[{i}] 길이 {len(text)} 초과 → {MAX_TEXT_LENGTH}자로 자름")
+            text = text[:MAX_TEXT_LENGTH]
+        cleaned.append(text)
+
+    try:
+        embeddings = model.encode(
+            cleaned,
+            normalize_embeddings=True,
+            batch_size=32,
+            show_progress_bar=False,
+        )
+    except Exception as e:
+        logger.exception("임베딩 실패")
+        raise HTTPException(status_code=500, detail=f"임베딩 실패: {e}")
+
     return EmbedResponse(
         embeddings=embeddings.tolist(),
         dimension=embeddings.shape[1],

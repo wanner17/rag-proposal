@@ -1,6 +1,6 @@
 "use client";
 import { useState, useRef, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   agentStream,
   AgentUnavailableError,
@@ -12,7 +12,6 @@ import {
 } from "@/lib/api";
 import { listProjects, type Project } from "@/lib/projects";
 import SourceCard from "@/components/SourceCard";
-import AppNav from "@/components/AppNav";
 
 type ChatMode = "stream" | "agent" | "compare";
 type ComparisonSideKey = "stream" | "agent";
@@ -44,6 +43,8 @@ interface Message {
 
 export default function ChatPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const projectSlugParam = searchParams.get("project");
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -270,7 +271,14 @@ export default function ChatPage() {
       const items = await listProjects(token);
       const activeProjects = items.filter((project) => project.status === "active");
       setProjects(activeProjects);
-      setSelectedProjectId((current) => current || activeProjects[0]?.id || "");
+      setSelectedProjectId((current) => {
+        if (current) return current;
+        if (projectSlugParam) {
+          const matched = activeProjects.find((p) => p.slug === projectSlugParam);
+          if (matched) return matched.id;
+        }
+        return activeProjects[0]?.id || "";
+      });
       setProjectError("");
     } catch (error) {
       setProjectError(error instanceof Error ? error.message : "프로젝트 목록을 불러오지 못했습니다.");
@@ -724,7 +732,6 @@ export default function ChatPage() {
               Compare
             </button>
           </div>
-          <AppNav />
         </div>
       </header>
       {authError && (

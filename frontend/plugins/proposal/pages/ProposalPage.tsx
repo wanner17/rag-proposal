@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import AppNav from "@/components/AppNav";
 import SourceCard from "@/components/SourceCard";
 import {
   draftProposal,
@@ -88,11 +87,6 @@ export default function ProposalsPage() {
                 요청, 근거 검색, 초안, 출처 검토를 한 화면에서 확인합니다.
               </p>
             </div>
-            <AppNav
-              className="flex flex-wrap items-center gap-2 text-sm"
-              linkClassName="rounded-lg px-3 py-2 font-medium text-gray-600 hover:bg-gray-100 hover:text-blue-700"
-              logoutClassName="rounded-lg px-3 py-2 font-medium text-red-500 hover:bg-red-50 hover:text-red-700"
-            />
           </div>
           <WorkflowStepper status={status} />
         </header>

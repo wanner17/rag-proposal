@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   DocumentSearchHit,
   DocumentSearchResponse,
@@ -10,12 +10,13 @@ import {
   listDocuments,
   searchDocuments,
 } from "@/lib/api";
-import AppNav from "@/components/AppNav";
 
 type Status = "loading" | "idle" | "searching" | "error";
 
 export default function DocumentsPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const projectSlug = searchParams.get("project");
   const [query, setQuery] = useState("");
   const [topK, setTopK] = useState(10);
   const [status, setStatus] = useState<Status>("loading");
@@ -88,10 +89,11 @@ export default function DocumentsPage() {
     <div className="min-h-screen max-w-6xl mx-auto px-6 py-6">
       <header className="flex items-center justify-between mb-6 bg-white border shadow-sm rounded-2xl px-5 py-4">
         <div>
-          <h1 className="text-xl font-bold text-blue-700">업로드 문서 조회</h1>
+          <h1 className="text-xl font-bold text-blue-700">
+            문서{projectSlug ? ` — ${projectSlug}` : ""}
+          </h1>
           <p className="text-sm text-gray-500 mt-1">업로드된 문서 목록과 검색 결과 원문 조각을 확인합니다.</p>
         </div>
-        <AppNav />
       </header>
 
       <section className="bg-white border rounded-2xl shadow-sm p-5 mb-6">

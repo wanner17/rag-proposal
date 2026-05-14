@@ -38,6 +38,15 @@ export interface ProjectSourceConfig {
   max_file_size_bytes: number;
   encoding: string;
   follow_symlinks: boolean;
+  // SVN
+  svn_url?: string | null;
+  svn_username?: string | null;
+  svn_password?: string | null;
+  // VPN
+  vpn_required: boolean;
+  vpn_name?: string | null;
+  svn_server_ip?: string | null;
+  vpn_gateway?: string | null;
 }
 
 export interface ProjectCreatePayload {
@@ -106,4 +115,68 @@ export async function importProject(bundle: string, token: string) {
   });
   if (!res.ok) throw new Error("프로젝트 가져오기 실패");
   return res.json() as Promise<{ project: Project; imported: boolean }>;
+}
+
+export interface CheckoutStatus {
+  status: "idle" | "running" | "done" | "error" | "started";
+  message: string;
+  progress: number;
+}
+
+export interface SourceIndexStatus {
+  project_slug: string;
+  collection_name: string;
+  enabled: boolean;
+  status: string;
+  last_full_indexed_at: string | null;
+  last_incremental_indexed_at: string | null;
+  last_successful_revision: string | null;
+  stale_lock: boolean;
+  counts: Record<string, number>;
+  recent_failures: { relative_path: string; reason: string }[];
+}
+
+export async function triggerCheckout(projectId: string, token: string) {
+  const res = await fetch(`${API_BASE}/projects/${projectId}/source-index/checkout`, {
+    method: "POST",
+    headers: authHeaders(token),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json() as Promise<CheckoutStatus>;
+}
+
+export async function getCheckoutStatus(projectId: string, token: string) {
+  const res = await fetch(`${API_BASE}/projects/${projectId}/source-index/checkout/status`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error("체크아웃 상태 조회 실패");
+  return res.json() as Promise<CheckoutStatus>;
+}
+
+export async function getSourceIndexStatus(projectId: string, token: string) {
+  const res = await fetch(`${API_BASE}/projects/${projectId}/source-index/status`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error("색인 상태 조회 실패");
+  return res.json() as Promise<SourceIndexStatus>;
+}
+
+export async function triggerReindex(projectId: string, token: string) {
+  const res = await fetch(`${API_BASE}/projects/${projectId}/source-index/reindex`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: JSON.stringify({}),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function triggerIncrementalIndex(projectId: string, token: string) {
+  const res = await fetch(`${API_BASE}/projects/${projectId}/source-index`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: JSON.stringify({ changed_files: [], deleted_files: [] }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
 }

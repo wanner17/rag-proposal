@@ -65,10 +65,12 @@ async def index_chunks(chunks: list[dict], collection_name: str | None = None):
     await ensure_collection(target_collection)
 
     texts = [c["text"] for c in chunks]
-    dense_vecs = []
-    # 배치 처리 (임베딩 서비스 한 번에 요청)
     from app.services.embedding import get_embeddings
-    dense_vecs = await get_embeddings(texts)
+    # 256개 초과 시 나눠서 요청
+    _EMBED_BATCH = 256
+    dense_vecs = []
+    for i in range(0, len(texts), _EMBED_BATCH):
+        dense_vecs.extend(await get_embeddings(texts[i : i + _EMBED_BATCH]))
 
     points = []
     for chunk, dense in zip(chunks, dense_vecs):

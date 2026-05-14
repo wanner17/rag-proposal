@@ -91,6 +91,17 @@ class ProjectSourceConfig(BaseModel):
     encoding: str = "utf-8"
     follow_symlinks: bool = False
 
+    # SVN 연결 정보
+    svn_url: str | None = None
+    svn_username: str | None = None
+    svn_password: str | None = None
+
+    # VPN 설정 (L2TP/IPsec — strongSwan + xl2tpd)
+    vpn_required: bool = False
+    vpn_name: str | None = None         # ipsec 프로파일명
+    svn_server_ip: str | None = None    # SVN 서버 IP (라우팅용)
+    vpn_gateway: str | None = None      # ppp0 게이트웨이 IP
+
     @model_validator(mode="after")
     def validate_repo_root(self) -> "ProjectSourceConfig":
         if not self.repo_root:

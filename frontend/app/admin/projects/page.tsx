@@ -3,7 +3,6 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import AppNav from "@/components/AppNav";
 import {
   createProject,
   exportProject,
@@ -27,6 +26,23 @@ const EMPTY_FORM: ProjectCreatePayload = {
     top_n_default: 5,
     prompt_profile: "",
     storage_namespace: "",
+  },
+  source_config: {
+    enabled: false,
+    vpn_required: false,
+    svn_url: "",
+    svn_username: "",
+    svn_password: "",
+    repo_root: "",
+    vpn_name: "",
+    svn_server_ip: "",
+    vpn_gateway: "",
+    allowed_base_path: "/opt/rag-projects",
+    include_globs: [],
+    exclude_globs: [],
+    max_file_size_bytes: 1048576,
+    encoding: "utf-8",
+    follow_symlinks: false,
   },
 };
 
@@ -139,10 +155,9 @@ export default function ProjectAdminPage() {
       <div className="mx-auto max-w-7xl px-6 py-6">
         <header className="mb-6 flex flex-wrap items-center justify-between gap-4 border-b pb-4">
           <div>
-            <p className="text-sm text-slate-500">RAG Project Console</p>
+            <p className="text-sm text-slate-500">사내 RAG 플랫폼</p>
             <h1 className="text-2xl font-bold text-slate-900">프로젝트 관리</h1>
           </div>
-          <AppNav />
         </header>
 
         <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
@@ -253,6 +268,83 @@ export default function ProjectAdminPage() {
                 제안서 플러그인 사용
               </label>
 
+              {/* 소스 저장소 설정 */}
+              {(() => {
+                const sc = form.source_config ?? EMPTY_FORM.source_config!;
+                const setSc = (patch: Partial<typeof sc>) =>
+                  setForm({ ...form, source_config: { ...sc, ...patch } });
+                return (
+                  <fieldset className="rounded-lg border p-4 space-y-4">
+                    <legend className="px-1 text-sm font-semibold text-slate-700">소스 저장소 설정</legend>
+
+                    <label className="flex items-center gap-3 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={sc.enabled}
+                        onChange={(e) => setSc({ enabled: e.target.checked })}
+                      />
+                      소스코드 검색 사용
+                    </label>
+
+                    {sc.enabled && (
+                      <>
+                        <div className="grid gap-3 md:grid-cols-2">
+                          <Field
+                            label="저장소 주소 (SVN URL)"
+                            value={sc.svn_url ?? ""}
+                            onChange={(v) => setSc({ svn_url: v })}
+                          />
+                          <Field
+                            label="파일 저장 경로 (서버 절대경로)"
+                            value={sc.repo_root ?? ""}
+                            onChange={(v) => setSc({ repo_root: v })}
+                          />
+                          <Field
+                            label="저장소 계정 (선택)"
+                            value={sc.svn_username ?? ""}
+                            onChange={(v) => setSc({ svn_username: v })}
+                          />
+                          <PasswordField
+                            label="저장소 비밀번호 (선택)"
+                            value={sc.svn_password ?? ""}
+                            onChange={(v) => setSc({ svn_password: v })}
+                          />
+                        </div>
+
+                        <label className="flex items-center gap-3 text-sm">
+                          <input
+                            type="checkbox"
+                            checked={sc.vpn_required}
+                            onChange={(e) => setSc({ vpn_required: e.target.checked })}
+                          />
+                          사내망 연결 (VPN) 필요
+                        </label>
+
+                        {sc.vpn_required && (
+                          <div className="grid gap-3 md:grid-cols-3 pl-5 border-l-2 border-slate-200">
+                            <Field
+                              label="VPN 프로파일명"
+                              value={sc.vpn_name ?? ""}
+                              onChange={(v) => setSc({ vpn_name: v })}
+                            />
+                            <Field
+                              label="SVN 서버 IP"
+                              value={sc.svn_server_ip ?? ""}
+                              onChange={(v) => setSc({ svn_server_ip: v })}
+                            />
+                            <Field
+                              label="VPN 게이트웨이 IP"
+                              value={sc.vpn_gateway ?? ""}
+                              onChange={(v) => setSc({ vpn_gateway: v })}
+                            />
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </fieldset>
+                );
+              })()}
+
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <p className="text-sm text-slate-600">{status || "변경 내용을 저장하면 프로젝트 설정이 반영됩니다."}</p>
                 <button type="submit" className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white">
@@ -268,6 +360,7 @@ export default function ProjectAdminPage() {
 }
 
 function toForm(project: Project): ProjectCreatePayload {
+  const sc = project.source_config;
   return {
     slug: project.slug,
     name: project.name,
@@ -276,6 +369,18 @@ function toForm(project: Project): ProjectCreatePayload {
     default_language: project.default_language,
     plugins: project.plugins.length ? project.plugins : [{ plugin_id: "proposal", enabled: false, config: {} }],
     rag_config: project.rag_config,
+    source_config: sc
+      ? {
+          ...sc,
+          svn_url: sc.svn_url ?? "",
+          svn_username: sc.svn_username ?? "",
+          svn_password: sc.svn_password ?? "",
+          repo_root: sc.repo_root ?? "",
+          vpn_name: sc.vpn_name ?? "",
+          svn_server_ip: sc.svn_server_ip ?? "",
+          vpn_gateway: sc.vpn_gateway ?? "",
+        }
+      : EMPTY_FORM.source_config,
   };
 }
 
@@ -298,6 +403,29 @@ function Field({
         disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
         className="w-full rounded-md border px-3 py-2 text-sm disabled:bg-slate-100"
+      />
+    </label>
+  );
+}
+
+function PasswordField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className="block text-sm font-medium">
+      <span className="mb-1 block">{label}</span>
+      <input
+        type="password"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="w-full rounded-md border px-3 py-2 text-sm"
+        autoComplete="new-password"
       />
     </label>
   );

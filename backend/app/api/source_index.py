@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import asdict
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 
 from app.core.auth import get_current_user
@@ -204,6 +204,47 @@ async def source_index_status(
             for record in repo.recent_failures(project.slug)
         ],
     )
+
+
+class CheckoutStatusResponse(BaseModel):
+    status: str
+    message: str
+    progress: int
+
+
+@router.post("/projects/{project_id}/source-index/checkout", response_model=CheckoutStatusResponse)
+async def trigger_checkout(
+    project_id: str,
+    background_tasks: BackgroundTasks,
+    _: UserInfo = Depends(_require_source_index_access),
+):
+    from app.services.svn_checkout import get_checkout_status, run_checkout
+
+    project = get_project(project_id)
+    config = project.source_config
+    if not config or not config.svn_url:
+        raise HTTPException(status_code=400, detail="svn_url이 설정되지 않았습니다")
+    if not config.repo_root:
+        raise HTTPException(status_code=400, detail="repo_root가 설정되지 않았습니다")
+
+    current = get_checkout_status(project.slug)
+    if current["status"] == "running":
+        raise HTTPException(status_code=409, detail="이미 체크아웃이 진행 중입니다")
+
+    background_tasks.add_task(run_checkout, project.slug, config)
+    return CheckoutStatusResponse(status="started", message="체크아웃을 시작했습니다", progress=0)
+
+
+@router.get("/projects/{project_id}/source-index/checkout/status", response_model=CheckoutStatusResponse)
+async def checkout_status(
+    project_id: str,
+    _: UserInfo = Depends(_require_source_index_access),
+):
+    from app.services.svn_checkout import get_checkout_status
+
+    project = get_project(project_id)
+    state = get_checkout_status(project.slug)
+    return CheckoutStatusResponse(**state)
 
 
 def _is_stale_lock(status_value: str, lock_started_at: str | None) -> bool:

@@ -21,22 +21,16 @@ const EMPTY_FORM: ProjectCreatePayload = {
   default_language: "ko",
   plugins: [{ plugin_id: "proposal", enabled: true, config: {} }],
   rag_config: {
-    collection_name: "",
     top_k_default: 20,
     top_n_default: 5,
     prompt_profile: "",
-    storage_namespace: "",
   },
   source_config: {
     enabled: false,
-    vpn_required: false,
     svn_url: "",
     svn_username: "",
     svn_password: "",
     repo_root: "",
-    vpn_name: "",
-    svn_server_ip: "",
-    vpn_gateway: "",
     allowed_base_path: "/opt/rag-projects",
     include_globs: [],
     exclude_globs: [],
@@ -112,6 +106,7 @@ export default function ProjectAdminPage() {
             default_language: form.default_language,
             plugins: form.plugins,
             rag_config: form.rag_config,
+            source_config: form.source_config,
           },
           token
         );
@@ -212,13 +207,6 @@ export default function ProjectAdminPage() {
                 <Field label="Slug" value={form.slug} disabled={Boolean(selectedProject)} onChange={(slug) => setForm({ ...form, slug })} />
                 <Field label="이름" value={form.name} onChange={(name) => setForm({ ...form, name })} />
                 <Field label="기본 언어" value={form.default_language} onChange={(default_language) => setForm({ ...form, default_language })} />
-                <Field
-                  label="컬렉션"
-                  value={form.rag_config.collection_name}
-                  onChange={(collection_name) =>
-                    setForm({ ...form, rag_config: { ...form.rag_config, collection_name } })
-                  }
-                />
               </div>
 
               <label className="block text-sm font-medium">
@@ -310,35 +298,6 @@ export default function ProjectAdminPage() {
                             onChange={(v) => setSc({ svn_password: v })}
                           />
                         </div>
-
-                        <label className="flex items-center gap-3 text-sm">
-                          <input
-                            type="checkbox"
-                            checked={sc.vpn_required}
-                            onChange={(e) => setSc({ vpn_required: e.target.checked })}
-                          />
-                          사내망 연결 (VPN) 필요
-                        </label>
-
-                        {sc.vpn_required && (
-                          <div className="grid gap-3 md:grid-cols-3 pl-5 border-l-2 border-slate-200">
-                            <Field
-                              label="VPN 프로파일명"
-                              value={sc.vpn_name ?? ""}
-                              onChange={(v) => setSc({ vpn_name: v })}
-                            />
-                            <Field
-                              label="SVN 서버 IP"
-                              value={sc.svn_server_ip ?? ""}
-                              onChange={(v) => setSc({ svn_server_ip: v })}
-                            />
-                            <Field
-                              label="VPN 게이트웨이 IP"
-                              value={sc.vpn_gateway ?? ""}
-                              onChange={(v) => setSc({ vpn_gateway: v })}
-                            />
-                          </div>
-                        )}
                       </>
                     )}
                   </fieldset>
@@ -376,9 +335,6 @@ function toForm(project: Project): ProjectCreatePayload {
           svn_username: sc.svn_username ?? "",
           svn_password: sc.svn_password ?? "",
           repo_root: sc.repo_root ?? "",
-          vpn_name: sc.vpn_name ?? "",
-          svn_server_ip: sc.svn_server_ip ?? "",
-          vpn_gateway: sc.vpn_gateway ?? "",
         }
       : EMPTY_FORM.source_config,
   };

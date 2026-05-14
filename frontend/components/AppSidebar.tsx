@@ -61,7 +61,8 @@ export default function AppSidebar() {
 
           const subItems = [
             { href: `/chat?project=${project.slug}`, basePath: "/chat", label: "💬 AI 대화" },
-            { href: `/documents?project=${project.slug}`, basePath: "/documents", label: "📄 문서" },
+            { href: `/documents?project=${project.slug}`, basePath: "/documents", label: "📄 문서 검색" },
+            { href: `/upload?project=${project.slug}`, basePath: "/upload", label: "📤 문서 업로드" },
             ...(project.source_config?.enabled
               ? [{ href: `/source?project=${project.slug}`, basePath: "/source", label: "💻 소스코드" }]
               : []),

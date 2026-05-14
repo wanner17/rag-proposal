@@ -1,28 +1,42 @@
 "use client";
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { ingestDocument } from "@/lib/api";
-import { navigationItems } from "@/lib/plugins";
 
-export default function UploadPage() {
+import { Suspense, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { ingestDocument } from "@/lib/api";
+import { listProjects, type Project } from "@/lib/projects";
+
+function UploadPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const projectSlug = searchParams.get("project");
+
+  const [project, setProject] = useState<Project | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [form, setForm] = useState({ year: "2024", client: "", domain: "", project_type: "", department: "" });
   const [status, setStatus] = useState<"idle" | "uploading" | "done" | "error">("idle");
   const [result, setResult] = useState("");
 
   useEffect(() => {
-    if (!localStorage.getItem("token")) router.push("/login");
-  }, [router]);
+    const token = localStorage.getItem("token");
+    if (!token) { router.push("/login"); return; }
+    listProjects(token)
+      .then((list) => {
+        const found = projectSlug ? list.find((p) => p.slug === projectSlug) : list[0];
+        if (found) setProject(found);
+      })
+      .catch(() => {});
+  }, [router, projectSlug]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!file) return;
     setStatus("uploading");
+    setResult("");
 
     const fd = new FormData();
     fd.append("file", file);
     Object.entries(form).forEach(([k, v]) => fd.append(k, v));
+    if (project) fd.append("project_id", project.id);
 
     try {
       const token = localStorage.getItem("token") ?? "";
@@ -36,31 +50,32 @@ export default function UploadPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-6">
-      <div className="bg-white rounded-2xl shadow-lg p-8 w-full max-w-lg">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-xl font-bold">문서 업로드</h1>
-          <div className="flex gap-3">
-            {navigationItems
-              .filter((item) => item.href !== "/upload")
-              .map((item) => (
-                <button
-                  key={item.href}
-                  onClick={() => router.push(item.href)}
-                  className="text-sm text-blue-600 hover:underline"
-                >
-                  {item.label}
-                </button>
-              ))}
-          </div>
+    <div className="min-h-screen max-w-2xl mx-auto px-6 py-6">
+      <header className="flex items-center justify-between mb-6 bg-white border shadow-sm rounded-2xl px-5 py-4">
+        <div>
+          <h1 className="text-xl font-bold text-blue-700">
+            문서 업로드{project ? ` — ${project.name}` : ""}
+          </h1>
+          <p className="text-sm text-gray-500 mt-1">PDF, HWP 문서를 업로드하여 RAG 검색 인덱스에 추가합니다.</p>
         </div>
+      </header>
 
+      <section className="bg-white border rounded-2xl shadow-sm p-6">
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center">
-            <input type="file" onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-              className="hidden" id="file-input" />
-            <label htmlFor="file-input" className="cursor-pointer text-blue-600 hover:underline">
-              {file ? file.name : "파일 선택"}
+          <div className="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center hover:border-blue-400 transition-colors">
+            <input
+              type="file"
+              accept=".pdf,.hwp,.hwpx,.docx"
+              onChange={(e) => { setFile(e.target.files?.[0] ?? null); setStatus("idle"); setResult(""); }}
+              className="hidden"
+              id="file-input"
+            />
+            <label htmlFor="file-input" className="cursor-pointer">
+              {file ? (
+                <span className="text-blue-700 font-medium">{file.name}</span>
+              ) : (
+                <span className="text-gray-400">파일 선택 (PDF, HWP, DOCX)</span>
+              )}
             </label>
           </div>
 
@@ -74,7 +89,7 @@ export default function UploadPage() {
             <div key={key} className="flex items-center gap-3">
               <label className="w-20 text-sm text-gray-600 shrink-0">{label}</label>
               <input
-                className="flex-1 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="flex-1 border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder={placeholder}
                 value={form[key as keyof typeof form]}
                 onChange={(e) => setForm({ ...form, [key]: e.target.value })}
@@ -84,15 +99,28 @@ export default function UploadPage() {
           ))}
 
           {result && (
-            <p className={`text-sm ${status === "done" ? "text-green-600" : "text-red-500"}`}>{result}</p>
+            <p className={`text-sm rounded-lg px-3 py-2 ${status === "done" ? "bg-green-50 text-green-700" : "bg-red-50 text-red-600"}`}>
+              {result}
+            </p>
           )}
 
-          <button type="submit" disabled={!file || status === "uploading"}
-            className="w-full bg-blue-600 text-white rounded-xl py-2.5 font-medium hover:bg-blue-700 disabled:opacity-40 transition">
+          <button
+            type="submit"
+            disabled={!file || status === "uploading"}
+            className="w-full bg-blue-600 text-white rounded-xl py-2.5 font-medium hover:bg-blue-700 disabled:opacity-40 transition"
+          >
             {status === "uploading" ? "업로드 중..." : "업로드"}
           </button>
         </form>
-      </div>
+      </section>
     </div>
+  );
+}
+
+export default function UploadPageWrapper() {
+  return (
+    <Suspense fallback={null}>
+      <UploadPage />
+    </Suspense>
   );
 }

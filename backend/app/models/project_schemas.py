@@ -17,16 +17,24 @@ class ProjectPluginBinding(BaseModel):
     config: dict = Field(default_factory=dict)
 
 
+def _default_collection_name() -> str:
+    from app.core.config import settings  # lazy to avoid circular import
+    return settings.QDRANT_COLLECTION
+
+
 class ProjectRagConfig(BaseModel):
-    collection_name: str = Field(..., min_length=1, max_length=120)
+    collection_name: str = Field(default_factory=_default_collection_name, max_length=120)
     top_k_default: int = Field(default=20, ge=1, le=50)
     top_n_default: int = Field(default=5, ge=1, le=10)
     prompt_profile: str | None = Field(default=None, max_length=120)
     storage_namespace: str | None = Field(default=None, max_length=120)
 
-    @field_validator("collection_name")
+    @field_validator("collection_name", mode="before")
     @classmethod
-    def validate_collection_name(cls, value: str) -> str:
+    def validate_collection_name(cls, value: str | None) -> str:
+        if not value:
+            from app.core.config import settings
+            return settings.QDRANT_COLLECTION
         allowed = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_")
         if any(char not in allowed for char in value):
             raise ValueError("collection_name must use letters, numbers, '-' or '_' only")
@@ -95,12 +103,6 @@ class ProjectSourceConfig(BaseModel):
     svn_url: str | None = None
     svn_username: str | None = None
     svn_password: str | None = None
-
-    # VPN 설정 (L2TP/IPsec — strongSwan + xl2tpd)
-    vpn_required: bool = False
-    vpn_name: str | None = None         # ipsec 프로파일명
-    svn_server_ip: str | None = None    # SVN 서버 IP (라우팅용)
-    vpn_gateway: str | None = None      # ppp0 게이트웨이 IP
 
     @model_validator(mode="after")
     def validate_repo_root(self) -> "ProjectSourceConfig":

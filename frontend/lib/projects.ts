@@ -8,7 +8,7 @@ export interface ProjectPluginBinding {
 }
 
 export interface ProjectRagConfig {
-  collection_name: string;
+  collection_name?: string | null;
   top_k_default: number;
   top_n_default: number;
   prompt_profile?: string | null;
@@ -38,15 +38,9 @@ export interface ProjectSourceConfig {
   max_file_size_bytes: number;
   encoding: string;
   follow_symlinks: boolean;
-  // SVN
   svn_url?: string | null;
   svn_username?: string | null;
   svn_password?: string | null;
-  // VPN
-  vpn_required: boolean;
-  vpn_name?: string | null;
-  svn_server_ip?: string | null;
-  vpn_gateway?: string | null;
 }
 
 export interface ProjectCreatePayload {

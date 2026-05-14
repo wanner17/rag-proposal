@@ -26,6 +26,10 @@ class Settings(BaseSettings):
     SOURCE_INDEX_LOCK_TIMEOUT_SECONDS: int = 3600
     SOURCE_INDEX_API_TOKEN: str | None = None
     RAG_ENABLED_PLUGINS: str = "proposal"
+    # SVN VPN (L2TP/IPsec) — 서버 전역 설정. 값이 없으면 VPN 없이 직접 체크아웃
+    SVN_VPN_NAME: str | None = None        # ipsec/xl2tpd 프로파일명
+    SVN_VPN_SERVER_IP: str | None = None   # SVN 서버 IP (라우팅용)
+    SVN_VPN_GATEWAY: str | None = None     # ppp0 게이트웨이 IP
     ENABLE_AGENT_ORCHESTRATION: bool = False
     SECRET_KEY: str = "change-me"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 480

@@ -6,6 +6,7 @@ import os
 from contextlib import asynccontextmanager
 from typing import Callable
 
+from app.core.config import settings
 from app.models.project_schemas import ProjectSourceConfig
 
 logger = logging.getLogger(__name__)
@@ -31,47 +32,46 @@ def _set_status(project_slug: str, status: str, message: str, progress: int = 0)
 
 
 @asynccontextmanager
-async def _vpn_session(config: ProjectSourceConfig):
+async def _vpn_session():
     """VPN 연결 → yield → 해제 (L2TP/IPsec: strongSwan + xl2tpd)"""
-    await _vpn_up(config)
+    await _vpn_up()
     try:
         yield
     finally:
-        await _vpn_down(config)
+        await _vpn_down()
 
 
-async def _vpn_up(config: ProjectSourceConfig) -> None:
-    logger.info(f"[VPN] connecting: {config.vpn_name}")
+async def _vpn_up() -> None:
+    vpn_name = settings.SVN_VPN_NAME
+    server_ip = settings.SVN_VPN_SERVER_IP
+    gateway = settings.SVN_VPN_GATEWAY
+    logger.info(f"[VPN] connecting: {vpn_name}")
     # 1) ipsec up
-    await _run(["ipsec", "up", config.vpn_name])
+    await _run(["ipsec", "up", vpn_name])
     await asyncio.sleep(3)
     # 2) xl2tpd l2tp-control
     ctrl = "/var/run/xl2tpd/l2tp-control"
     with open(ctrl, "w") as f:
-        f.write(f"c {config.vpn_name}\n")
+        f.write(f"c {vpn_name}\n")
     await asyncio.sleep(8)
     # 3) 라우팅: SVN 서버 IP → ppp0
-    await _run(
-        ["ip", "route", "replace", config.svn_server_ip,
-         "via", config.vpn_gateway, "dev", "ppp0"]
-    )
+    await _run(["ip", "route", "replace", server_ip, "via", gateway, "dev", "ppp0"])
     logger.info("[VPN] connected")
 
 
-async def _vpn_down(config: ProjectSourceConfig) -> None:
+async def _vpn_down() -> None:
+    vpn_name = settings.SVN_VPN_NAME
+    server_ip = settings.SVN_VPN_SERVER_IP
+    gateway = settings.SVN_VPN_GATEWAY
     logger.info("[VPN] disconnecting")
     ctrl = "/var/run/xl2tpd/l2tp-control"
     try:
         with open(ctrl, "w") as f:
-            f.write(f"d {config.vpn_name}\n")
+            f.write(f"d {vpn_name}\n")
     except Exception:
         pass
-    await _run(
-        ["ip", "route", "del", config.svn_server_ip,
-         "via", config.vpn_gateway, "dev", "ppp0"],
-        check=False,
-    )
-    await _run(["ipsec", "down", config.vpn_name], check=False)
+    await _run(["ip", "route", "del", server_ip, "via", gateway, "dev", "ppp0"], check=False)
+    await _run(["ipsec", "down", vpn_name], check=False)
     logger.info("[VPN] disconnected")
 
 
@@ -96,8 +96,8 @@ async def run_checkout(project_slug: str, config: ProjectSourceConfig) -> None:
     _set_status(project_slug, "running", "시작 중...", 5)
 
     try:
-        if config.vpn_required:
-            async with _vpn_session(config):
+        if settings.SVN_VPN_NAME:
+            async with _vpn_session():
                 await _do_svn(project_slug, config)
         else:
             await _do_svn(project_slug, config)

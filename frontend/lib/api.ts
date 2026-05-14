@@ -176,8 +176,11 @@ export async function ingestDocument(formData: FormData, token: string) {
   return res.json();
 }
 
-export async function listDocuments(token: string) {
-  const res = await fetch(`${API_BASE}/documents`, {
+export async function listDocuments(token: string, projectId?: string) {
+  const url = projectId
+    ? `${API_BASE}/documents?project_id=${encodeURIComponent(projectId)}`
+    : `${API_BASE}/documents`;
+  const res = await fetch(url, {
     headers: { Authorization: `Bearer ${token}` },
   });
   if (!res.ok) throw new Error("문서 목록 조회 실패");
@@ -319,6 +322,7 @@ export interface DocumentSummary {
 export interface DocumentSearchRequest {
   query: string;
   top_k?: number;
+  project_id?: string;
 }
 
 export interface DocumentSearchHit {

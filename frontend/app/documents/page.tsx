@@ -10,6 +10,7 @@ import {
   listDocuments,
   searchDocuments,
 } from "@/lib/api";
+import { listProjects } from "@/lib/projects";
 
 type Status = "loading" | "idle" | "searching" | "error";
 
@@ -17,6 +18,7 @@ function DocumentsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const projectSlug = searchParams.get("project");
+  const [projectId, setProjectId] = useState<string | undefined>(undefined);
   const [query, setQuery] = useState("");
   const [topK, setTopK] = useState(10);
   const [status, setStatus] = useState<Status>("loading");
@@ -31,16 +33,23 @@ function DocumentsPage() {
       return;
     }
 
-    listDocuments(token)
-      .then((response) => {
-        setData(response);
-        setStatus("idle");
-      })
-      .catch((err) => {
-        setError(err instanceof Error ? err.message : "문서 목록 조회 중 오류가 발생했습니다.");
-        setStatus("error");
-      });
-  }, [router]);
+    const load = async () => {
+      let resolvedProjectId: string | undefined;
+      if (projectSlug) {
+        const projects = await listProjects(token);
+        resolvedProjectId = projects.find((p) => p.slug === projectSlug)?.id;
+        setProjectId(resolvedProjectId);
+      }
+      const response = await listDocuments(token, resolvedProjectId);
+      setData(response);
+      setStatus("idle");
+    };
+
+    load().catch((err) => {
+      setError(err instanceof Error ? err.message : "문서 목록 조회 중 오류가 발생했습니다.");
+      setStatus("error");
+    });
+  }, [router, projectSlug]);
 
   async function handleSearch(e: React.FormEvent) {
     e.preventDefault();
@@ -50,7 +59,7 @@ function DocumentsPage() {
 
     try {
       const token = localStorage.getItem("token") ?? "";
-      const response = await searchDocuments({ query: query.trim(), top_k: clamp(topK, 1, 50) }, token);
+      const response = await searchDocuments({ query: query.trim(), top_k: clamp(topK, 1, 50), project_id: projectId }, token);
       setData(response);
       setStatus("idle");
     } catch (err) {
@@ -61,7 +70,7 @@ function DocumentsPage() {
 
   async function refreshDocuments() {
     const token = localStorage.getItem("token") ?? "";
-    const response = await listDocuments(token);
+    const response = await listDocuments(token, projectId);
     setData(response);
   }
 

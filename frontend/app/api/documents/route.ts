@@ -4,7 +4,11 @@ const BACKEND = process.env.BACKEND_URL ?? "http://127.0.0.1:8088";
 
 export async function GET(req: NextRequest) {
   const auth = req.headers.get("authorization") ?? "";
-  const res = await fetch(`${BACKEND}/api/documents`, {
+  const projectId = req.nextUrl.searchParams.get("project_id");
+  const backendUrl = projectId
+    ? `${BACKEND}/api/documents?project_id=${encodeURIComponent(projectId)}`
+    : `${BACKEND}/api/documents`;
+  const res = await fetch(backendUrl, {
     headers: { authorization: auth },
   });
   const text = await res.text();

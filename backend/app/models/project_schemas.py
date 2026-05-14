@@ -101,8 +101,6 @@ class ProjectSourceConfig(BaseModel):
 
     # SVN 연결 정보
     svn_url: str | None = None
-    svn_username: str | None = None
-    svn_password: str | None = None
 
     @model_validator(mode="after")
     def validate_repo_root(self) -> "ProjectSourceConfig":

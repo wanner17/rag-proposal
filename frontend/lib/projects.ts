@@ -39,8 +39,6 @@ export interface ProjectSourceConfig {
   encoding: string;
   follow_symlinks: boolean;
   svn_url?: string | null;
-  svn_username?: string | null;
-  svn_password?: string | null;
 }
 
 export interface ProjectCreatePayload {

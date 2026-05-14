@@ -29,8 +29,6 @@ const EMPTY_FORM: ProjectCreatePayload = {
   source_config: {
     enabled: false,
     svn_url: "",
-    svn_username: "",
-    svn_password: "",
     repo_root: "",
     allowed_base_path: "/opt/rag-projects",
     include_globs: [],
@@ -312,16 +310,6 @@ export default function ProjectAdminPage() {
                             value={sc.repo_root ?? ""}
                             onChange={(v) => setSc({ repo_root: v })}
                           />
-                          <Field
-                            label="저장소 계정 (선택)"
-                            value={sc.svn_username ?? ""}
-                            onChange={(v) => setSc({ svn_username: v })}
-                          />
-                          <PasswordField
-                            label="저장소 비밀번호 (선택)"
-                            value={sc.svn_password ?? ""}
-                            onChange={(v) => setSc({ svn_password: v })}
-                          />
                         </div>
                       </>
                     )}
@@ -357,8 +345,6 @@ function toForm(project: Project): ProjectCreatePayload {
       ? {
           ...sc,
           svn_url: sc.svn_url ?? "",
-          svn_username: sc.svn_username ?? "",
-          svn_password: sc.svn_password ?? "",
           repo_root: sc.repo_root ?? "",
         }
       : EMPTY_FORM.source_config,
@@ -389,28 +375,6 @@ function Field({
   );
 }
 
-function PasswordField({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <label className="block text-sm font-medium">
-      <span className="mb-1 block">{label}</span>
-      <input
-        type="password"
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="w-full rounded-md border px-3 py-2 text-sm"
-        autoComplete="new-password"
-      />
-    </label>
-  );
-}
 
 function NumberField({
   label,

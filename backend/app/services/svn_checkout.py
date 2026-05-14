@@ -118,14 +118,13 @@ async def _do_svn(project_slug: str, config: ProjectSourceConfig) -> None:
         cmd = ["svn", "update", repo_root]
     else:
         _set_status(project_slug, "running", "저장소 내려받는 중...", 20)
-        cmd = ["svn", "checkout", config.svn_url, repo_root]
-        if config.svn_username:
-            cmd += [
-                "--username", config.svn_username,
-                "--password", config.svn_password or "",
-                "--no-auth-cache",
-                "--non-interactive",
-            ]
+        cmd = [
+            "svn", "checkout", config.svn_url, repo_root,
+            "--username", "wanner17",
+            "--password", "wanner17",
+            "--no-auth-cache",
+            "--non-interactive",
+        ]
 
     logger.info(f"[SVN] {'update' if is_update else 'checkout'}: {repo_root}")
     _set_status(project_slug, "running", "SVN 명령 실행 중..." , 50)

@@ -107,6 +107,16 @@ export default function ProjectAdminPage() {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const sourceConfig = form.source_config ?? EMPTY_FORM.source_config!;
+    const payload = {
+      ...form,
+      source_config: {
+        ...sourceConfig,
+        repo_root: form.slug
+          ? `/opt/rag-projects/${form.slug}`
+          : "",
+      },
+    };
     try {
       if (selectedProject) {
         const updated = await updateProject(
@@ -118,13 +128,13 @@ export default function ProjectAdminPage() {
             default_language: form.default_language,
             plugins: form.plugins,
             rag_config: form.rag_config,
-            source_config: form.source_config,
+            source_config: payload.source_config,
           },
           token
         );
         setStatus(`"${updated.name}" 프로젝트를 수정했습니다.`);
       } else {
-        const created = await createProject(form, token);
+        const created = await createProject(payload, token);
         setSelectedId(created.id);
         setStatus(`"${created.name}" 프로젝트를 만들었습니다.`);
       }
@@ -379,10 +389,15 @@ export default function ProjectAdminPage() {
                         </div>
                         <div className="sm:col-span-3">
                            <Field
-                            label="파일 저장 경로 (서버 절대경로)"
-                            value={sc.repo_root ?? ""}
-                            onChange={(v) => setSc({ repo_root: v })}
-                          />
+                              label="파일 저장 경로 (서버 절대경로)"
+                              value={
+                                form.slug
+                                  ? `/opt/rag-projects/${form.slug}`
+                                  : ""
+                              }
+                              disabled
+                              onChange={() => {}}
+                            />
                         </div>
                       </div>
                     )}

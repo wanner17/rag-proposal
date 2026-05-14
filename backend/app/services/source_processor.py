@@ -6,8 +6,11 @@ import uuid
 from pathlib import Path, PurePosixPath
 from typing import Literal
 
-from app.models.project_schemas import ProjectSourceConfig
-
+from app.models.project_schemas import (
+    ProjectSourceConfig,
+    DEFAULT_SOURCE_INCLUDE_GLOBS,
+    DEFAULT_SOURCE_EXCLUDE_GLOBS,
+)
 
 SourceSkipReason = Literal[
     "excluded",
@@ -78,9 +81,14 @@ def normalize_relative_path(relative_path: str, config: ProjectSourceConfig) -> 
 
 def should_include_source_path(relative_path: str, config: ProjectSourceConfig) -> bool:
     normalized = normalize_relative_path(relative_path, config)
-    if any(_glob_match(normalized, pattern) for pattern in config.exclude_globs):
+
+    exclude_globs = config.exclude_globs or DEFAULT_SOURCE_EXCLUDE_GLOBS
+    include_globs = config.include_globs or DEFAULT_SOURCE_INCLUDE_GLOBS
+
+    if any(_glob_match(normalized, pattern) for pattern in exclude_globs):
         return False
-    return any(_glob_match(normalized, pattern) for pattern in config.include_globs)
+
+    return any(_glob_match(normalized, pattern) for pattern in include_globs)
 
 
 def source_file_path(config: ProjectSourceConfig, relative_path: str) -> Path:

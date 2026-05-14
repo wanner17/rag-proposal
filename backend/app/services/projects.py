@@ -230,6 +230,14 @@ def update_project(project_id: str, request: ProjectUpdateRequest) -> ProjectRes
     return get_project(project_id)
 
 
+def delete_project(project_id: str) -> None:
+    project = get_project(project_id)
+    with _connect() as conn:
+        conn.execute("DELETE FROM projects WHERE id = ?", (project_id,))
+        conn.commit()
+    return None
+
+
 def export_project(project_id: str) -> str:
     project = get_project(project_id)
     bundle = {

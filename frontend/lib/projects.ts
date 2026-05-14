@@ -93,6 +93,14 @@ export async function updateProject(
   return res.json() as Promise<Project>;
 }
 
+export async function deleteProject(projectId: string, token: string) {
+  const res = await fetch(`${API_BASE}/projects/${projectId}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error("프로젝트 삭제 실패");
+}
+
 export async function exportProject(projectId: string, token: string) {
   const res = await fetch(`${API_BASE}/projects/${projectId}/export`, {
     headers: { Authorization: `Bearer ${token}` },

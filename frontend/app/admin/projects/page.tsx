@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 
 import {
   createProject,
+  deleteProject,
   exportProject,
   importProject,
   listProjects,
@@ -93,6 +94,19 @@ export default function ProjectAdminPage() {
     setStatus("");
   }
 
+  async function handleDelete(project: Project) {
+    if (!window.confirm(`"${project.name}" 프로젝트를 삭제할까요?\n되돌릴 수 없습니다.`)) return;
+    try {
+      await deleteProject(project.id, token);
+      setSelectedId("");
+      setForm(EMPTY_FORM);
+      setStatus(`"${project.name}" 프로젝트를 삭제했습니다.`);
+      await refresh();
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "삭제에 실패했습니다.");
+    }
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     try {
@@ -168,16 +182,27 @@ export default function ProjectAdminPage() {
                 {loading && <p className="text-sm text-slate-500">불러오는 중...</p>}
                 {!loading &&
                   projects.map((project) => (
-                    <button
+                    <div
                       key={project.id}
-                      onClick={() => selectProject(project)}
-                      className={`w-full rounded-md border px-3 py-3 text-left text-sm ${
+                      className={`flex items-center rounded-md border text-sm ${
                         selectedId === project.id ? "border-blue-500 bg-blue-50" : "bg-white"
                       }`}
                     >
-                      <span className="block font-medium">{project.name}</span>
-                      <span className="block text-xs text-slate-500">{project.slug}</span>
-                    </button>
+                      <button
+                        onClick={() => selectProject(project)}
+                        className="flex-1 px-3 py-3 text-left"
+                      >
+                        <span className="block font-medium">{project.name}</span>
+                        <span className="block text-xs text-slate-500">{project.slug}</span>
+                      </button>
+                      <button
+                        onClick={() => handleDelete(project)}
+                        className="shrink-0 px-2 py-1 mr-2 text-xs text-red-500 hover:bg-red-50 rounded"
+                        title="삭제"
+                      >
+                        삭제
+                      </button>
+                    </div>
                   ))}
               </div>
             </section>

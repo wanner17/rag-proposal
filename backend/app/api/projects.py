@@ -11,6 +11,7 @@ from app.models.project_schemas import (
 from app.models.schemas import UserInfo
 from app.services.projects import (
     create_project,
+    delete_project,
     export_project,
     get_project,
     import_project,
@@ -46,6 +47,11 @@ async def update_project_api(
     _: UserInfo = Depends(require_admin),
 ):
     return update_project(project_id, request)
+
+
+@router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_project_api(project_id: str, _: UserInfo = Depends(require_admin)):
+    delete_project(project_id)
 
 
 @router.get("/{project_id}/export")

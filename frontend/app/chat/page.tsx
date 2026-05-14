@@ -5,10 +5,12 @@ import {
   agentStream,
   AgentUnavailableError,
   chatStream,
+  RetrievalScope,
   UnauthorizedError,
   type AgentWorkflowMetadata,
   type Source,
 } from "@/lib/api";
+import { listProjects, type Project } from "@/lib/projects";
 import SourceCard from "@/components/SourceCard";
 import AppNav from "@/components/AppNav";
 
@@ -47,24 +49,47 @@ export default function ChatPage() {
   const [loading, setLoading] = useState(false);
   const [authError, setAuthError] = useState("");
   const [chatMode, setChatMode] = useState<ChatMode>("stream");
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [selectedProjectId, setSelectedProjectId] = useState("");
+  const [retrievalScope, setRetrievalScope] = useState<RetrievalScope>("documents");
+  const [projectError, setProjectError] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
   const activeRunRef = useRef(0);
   const comparisonFinishedRef = useRef(new Map<number, Set<ComparisonSideKey>>());
 
   useEffect(() => {
-    if (!localStorage.getItem("token")) router.push("/login");
+    const token = localStorage.getItem("token");
+    if (!token) {
+      router.push("/login");
+      return;
+    }
+    void loadProjects(token);
   }, [router]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  useEffect(() => {
+    if (retrievalScope !== "source_code") return;
+    const selected = projects.find((project) => project.id === selectedProjectId);
+    if (selected?.source_config.enabled) return;
+    const firstSourceProject = projects.find((project) => project.source_config.enabled);
+    if (firstSourceProject) {
+      setSelectedProjectId(firstSourceProject.id);
+      return;
+    }
+    setRetrievalScope("documents");
+  }, [projects, retrievalScope, selectedProjectId]);
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!input.trim() || loading) return;
 
     const query = input.trim();
-    const submittedMode = chatMode;
+    const submittedProjectId = selectedProjectId || undefined;
+    const submittedScope = retrievalScope;
+    const submittedMode = submittedScope === "source_code" ? "agent" : chatMode;
     const runId = activeRunRef.current + 1;
     activeRunRef.current = runId;
 
@@ -160,6 +185,10 @@ export default function ChatPage() {
               };
               return next;
             });
+          },
+          {
+            project_id: submittedProjectId,
+            retrieval_scope: submittedScope,
           }
         );
         return;
@@ -234,6 +263,18 @@ export default function ChatPage() {
 
   function isActiveRun(runId: number) {
     return activeRunRef.current === runId;
+  }
+
+  async function loadProjects(token: string) {
+    try {
+      const items = await listProjects(token);
+      const activeProjects = items.filter((project) => project.status === "active");
+      setProjects(activeProjects);
+      setSelectedProjectId((current) => current || activeProjects[0]?.id || "");
+      setProjectError("");
+    } catch (error) {
+      setProjectError(error instanceof Error ? error.message : "프로젝트 목록을 불러오지 못했습니다.");
+    }
   }
 
   function createComparisonRun(runId: number, query: string): ComparisonRun {
@@ -369,6 +410,10 @@ export default function ChatPage() {
           updateComparisonSide(runId, "agent", (side) => ({
             content: `${side.content}${notice}`,
           }));
+        },
+        {
+          project_id: selectedProjectId || undefined,
+          retrieval_scope: "documents",
         }
       );
     } catch (err) {
@@ -445,12 +490,25 @@ export default function ChatPage() {
   }
 
   function sourceKey(source: Source) {
+    if (source.source_kind === "source_code") {
+      return (
+        source.point_id ??
+        `${source.project_slug}:${source.relative_path}:${source.start_line}:${source.end_line}`
+      );
+    }
     return source.point_id ?? `${source.file}:${source.page}:${source.section}`;
   }
 
   function sourceLabel(source: Source) {
+    if (source.source_kind === "source_code") {
+      const lineRange =
+        source.start_line != null && source.end_line != null
+          ? `:${source.start_line}-${source.end_line}`
+          : "";
+      return `${source.relative_path ?? "source"}${lineRange}`;
+    }
     const section = source.section ? ` · ${source.section}` : "";
-    return `${source.file} p.${source.page}${section}`;
+    return `${source.file ?? "document"} p.${source.page ?? "-"}${section}`;
   }
 
   function getSourceOverlap(streamSources: Source[], agentSources: Source[]) {
@@ -613,11 +671,19 @@ export default function ChatPage() {
     );
   }
 
+  const selectedProject = projects.find((project) => project.id === selectedProjectId) ?? null;
+  const sourceProjects = projects.filter((project) => project.source_config?.enabled);
+
   return (
     <div className="flex h-screen max-w-6xl flex-col mx-auto">
       <header className="flex items-center justify-between gap-4 border-b bg-white px-6 py-4 shadow-sm">
         <div className="min-w-0">
           <h1 className="text-lg font-bold text-blue-700">RAG 문서 검색 시스템</h1>
+          {selectedProject && (
+            <p className="mt-0.5 text-xs text-gray-500">
+              {selectedProject.name} · {retrievalScope === "source_code" ? "소스코드" : "문서"}
+            </p>
+          )}
         </div>
         <div className="flex items-center gap-3">
           <div className="flex items-center rounded-lg border border-gray-200 bg-gray-50 p-1 text-xs font-medium">
@@ -647,7 +713,7 @@ export default function ChatPage() {
             </button>
             <button
               type="button"
-              disabled={loading}
+              disabled={loading || retrievalScope === "source_code"}
               onClick={() => setChatMode("compare")}
               className={`rounded-md px-3 py-1.5 transition ${
                 chatMode === "compare"
@@ -664,6 +730,11 @@ export default function ChatPage() {
       {authError && (
         <div className="border-b border-red-100 bg-red-50 px-6 py-2 text-sm text-red-600">
           {authError}
+        </div>
+      )}
+      {projectError && (
+        <div className="border-b border-amber-100 bg-amber-50 px-6 py-2 text-sm text-amber-700">
+          {projectError}
         </div>
       )}
 
@@ -717,17 +788,73 @@ export default function ChatPage() {
       </main>
 
       <footer className="border-t bg-white px-6 py-4">
+        <div className="mb-3 grid gap-3 md:grid-cols-[minmax(180px,1fr)_auto]">
+          <label className="min-w-0 text-xs font-medium text-gray-600">
+            <span className="mb-1 block">프로젝트</span>
+            <select
+              value={selectedProjectId}
+              onChange={(event) => setSelectedProjectId(event.target.value)}
+              disabled={loading || projects.length === 0}
+              className="w-full rounded-lg border px-3 py-2 text-sm text-gray-800 disabled:bg-gray-100"
+            >
+              {projects.map((project) => (
+                <option key={project.id} value={project.id}>
+                  {project.name} ({project.slug})
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="text-xs font-medium text-gray-600">
+            <span className="mb-1 block">검색 범위</span>
+            <div className="flex rounded-lg border border-gray-200 bg-gray-50 p-1 text-sm">
+              <button
+                type="button"
+                disabled={loading}
+                onClick={() => setRetrievalScope("documents")}
+                className={`rounded-md px-3 py-1.5 transition ${
+                  retrievalScope === "documents"
+                    ? "bg-white text-blue-700 shadow-sm"
+                    : "text-gray-500 hover:text-gray-700"
+                } disabled:opacity-50`}
+              >
+                문서
+              </button>
+              <button
+                type="button"
+                disabled={loading || sourceProjects.length === 0}
+                onClick={() => {
+                  setRetrievalScope("source_code");
+                  setChatMode("agent");
+                  if (selectedProject && !selectedProject.source_config.enabled) {
+                    setSelectedProjectId(sourceProjects[0]?.id ?? selectedProject.id);
+                  }
+                }}
+                className={`rounded-md px-3 py-1.5 transition ${
+                  retrievalScope === "source_code"
+                    ? "bg-white text-blue-700 shadow-sm"
+                    : "text-gray-500 hover:text-gray-700"
+                } disabled:opacity-50`}
+              >
+                소스코드
+              </button>
+            </div>
+          </div>
+        </div>
         <form onSubmit={handleSubmit} className="flex gap-3">
           <input
             className="flex-1 rounded-xl border px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="업로드 문서에 대해 질문하세요..."
+            placeholder={
+              retrievalScope === "source_code"
+                ? "선택한 프로젝트 소스코드에 대해 질문하세요..."
+                : "선택한 프로젝트 문서에 대해 질문하세요..."
+            }
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            disabled={loading}
+            disabled={loading || !selectedProjectId}
           />
           <button
             type="submit"
-            disabled={loading || !input.trim()}
+            disabled={loading || !input.trim() || !selectedProjectId}
             className="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-blue-700 disabled:opacity-40"
           >
             {loading ? "생성 중..." : "전송"}

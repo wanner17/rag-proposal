@@ -24,8 +24,20 @@ export interface Project {
   default_language: string;
   plugins: ProjectPluginBinding[];
   rag_config: ProjectRagConfig;
+  source_config: ProjectSourceConfig;
   created_at: string;
   updated_at: string;
+}
+
+export interface ProjectSourceConfig {
+  enabled: boolean;
+  repo_root?: string | null;
+  allowed_base_path: string;
+  include_globs: string[];
+  exclude_globs: string[];
+  max_file_size_bytes: number;
+  encoding: string;
+  follow_symlinks: boolean;
 }
 
 export interface ProjectCreatePayload {
@@ -36,6 +48,7 @@ export interface ProjectCreatePayload {
   default_language: string;
   plugins: ProjectPluginBinding[];
   rag_config: ProjectRagConfig;
+  source_config?: ProjectSourceConfig;
 }
 
 function authHeaders(token: string, contentType = "application/json") {

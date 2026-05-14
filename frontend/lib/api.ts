@@ -84,7 +84,8 @@ export async function agentStream(
   onToken: (token: string) => void,
   onMetadata: (metadata: AgentWorkflowMetadata) => void,
   onDone: () => void,
-  onRetry?: (notice: string) => void
+  onRetry?: (notice: string) => void,
+  options?: AgentQueryOptions
 ) {
   const res = await fetch(`${API_BASE}/agent/stream`, {
     method: "POST",
@@ -92,7 +93,7 @@ export async function agentStream(
       "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify({ query }),
+    body: JSON.stringify({ query, ...options }),
   });
 
   if (res.status === 401) throw new UnauthorizedError();
@@ -149,14 +150,14 @@ function handleStreamToken(
   if (remainingToken) onToken(remainingToken);
 }
 
-export async function agentQuery(query: string, token: string) {
+export async function agentQuery(query: string, token: string, options?: AgentQueryOptions) {
   const res = await fetch(`${API_BASE}/agent/query`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify({ query }),
+    body: JSON.stringify({ query, ...options }),
   });
 
   if (res.status === 401) throw new UnauthorizedError();
@@ -205,11 +206,24 @@ export async function deleteDocument(file: string, token: string) {
   return res.json() as Promise<DocumentDeleteResponse>;
 }
 
+export type RetrievalScope = "documents" | "source_code";
+
+export interface AgentQueryOptions {
+  project_id?: string;
+  retrieval_scope?: RetrievalScope;
+}
+
 export interface Source {
-  file: string;
-  page: number;
-  section: string;
+  source_kind?: "document" | "source_code";
+  file?: string;
+  page?: number;
+  section?: string;
   score: number | null;
+  project_slug?: string;
+  relative_path?: string;
+  language?: string;
+  start_line?: number | null;
+  end_line?: number | null;
   point_id?: string;
   retrieval_score?: number | null;
   rerank_score?: number | null;

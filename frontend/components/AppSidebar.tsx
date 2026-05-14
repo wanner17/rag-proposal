@@ -42,17 +42,17 @@ export default function AppSidebar() {
   }
 
   return (
-    <aside className="flex w-64 shrink-0 flex-col border-r border-gray-200 bg-white min-h-screen shadow-sm">
+    <aside className="flex w-64 shrink-0 flex-col border-r border-slate-200 bg-white min-h-screen shadow-sm z-20 relative">
       {/* 브랜드 */}
-      <div className="flex h-16 shrink-0 items-center border-b border-gray-200 px-6">
-        <a href="/projects" className="text-lg font-bold tracking-tight text-gray-900 transition-colors hover:text-blue-600">
+      <div className="flex h-16 shrink-0 items-center border-b border-slate-100 px-6">
+        <a href="/projects" className="text-xl font-extrabold tracking-tight bg-gradient-to-br from-indigo-600 to-blue-500 bg-clip-text text-transparent transition-opacity hover:opacity-80">
           사내 RAG 플랫폼
         </a>
       </div>
 
       {/* 프로젝트 목록 */}
       <nav className="flex-1 overflow-y-auto py-4">
-        <p className="mb-2 px-6 text-xs font-semibold uppercase tracking-wider text-gray-500">
+        <p className="mb-2 px-6 text-xs font-bold uppercase tracking-wider text-slate-400">
           내 프로젝트
         </p>
         {projects.map((project) => {
@@ -82,12 +82,12 @@ export default function AppSidebar() {
                     router.push(`/chat?project=${project.slug}`);
                   }
                 }}
-                className={`group flex w-full items-center justify-between px-6 py-2.5 text-left text-sm font-medium transition-colors ${
-                  isCurrent ? "bg-blue-50/50 text-blue-600" : "text-gray-700 hover:bg-gray-50"
+                className={`group flex w-full items-center justify-between px-6 py-2.5 text-left text-sm font-semibold transition-colors ${
+                  isCurrent ? "bg-indigo-50/70 text-indigo-700" : "text-slate-700 hover:bg-slate-50"
                 }`}
               >
                 <span className="truncate">{project.name}</span>
-                <span className={`ml-1 text-xs transition-transform ${isExpanded ? "text-blue-600" : "text-gray-400 group-hover:text-gray-600"}`}>
+                <span className={`ml-1 text-xs transition-transform ${isExpanded ? "text-indigo-600" : "text-slate-400 group-hover:text-slate-600"}`}>
                   {isExpanded ? "▾" : "▸"}
                 </span>
               </button>
@@ -100,10 +100,10 @@ export default function AppSidebar() {
                       <a
                         key={item.href}
                         href={item.href}
-                        className={`block rounded-md px-3 py-2 text-sm transition-colors ${
+                        className={`block rounded-xl px-3 py-2 text-sm transition-colors ${
                           active
-                            ? "bg-blue-50 font-semibold text-blue-700 ring-1 ring-inset ring-blue-700/10"
-                            : "font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                            ? "bg-indigo-50 font-bold text-indigo-700 ring-1 ring-inset ring-indigo-500/20"
+                            : "font-medium text-slate-500 hover:bg-slate-50 hover:text-slate-900"
                         }`}
                       >
                         {item.label}
@@ -118,20 +118,20 @@ export default function AppSidebar() {
       </nav>
 
       {/* 하단 */}
-      <div className="space-y-1 border-t border-gray-200 p-4">
+      <div className="space-y-1 border-t border-slate-100 p-4">
         <a
           href="/admin/projects"
-          className={`flex items-center gap-x-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+          className={`flex items-center gap-x-3 rounded-xl px-3 py-2 text-sm font-semibold transition-colors ${
             pathname.startsWith("/admin")
-              ? "bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-700/10"
-              : "text-gray-700 hover:bg-gray-50 hover:text-gray-900"
+              ? "bg-indigo-50 text-indigo-700 ring-1 ring-inset ring-indigo-500/20"
+              : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
           }`}
         >
           <span className="text-base">⚙️</span> 프로젝트 관리
         </a>
         <button
           onClick={handleLogout}
-          className="flex w-full items-center gap-x-3 rounded-md px-3 py-2 text-left text-sm font-medium text-red-600 transition-colors hover:bg-red-50"
+          className="flex w-full items-center gap-x-3 rounded-xl px-3 py-2 text-left text-sm font-semibold text-red-600 transition-colors hover:bg-red-50"
         >
           <span className="text-base text-red-500">→</span> 로그아웃
         </button>

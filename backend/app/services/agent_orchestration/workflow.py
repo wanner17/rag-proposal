@@ -8,7 +8,7 @@ from uuid import uuid4
 
 from fastapi import HTTPException, status
 
-from app.models.schemas import Source
+from app.models.schemas import DocumentSource, Source, SourceCodeSource
 from app.services.agent_orchestration.answer_quality import review_answer_quality
 from app.services.agent_orchestration.types import (
     AnswerQualityReport,
@@ -28,6 +28,7 @@ NO_RESULTS_MESSAGE = "관련 문서를 찾지 못했습니다."
 class _AgentGraphState(TypedDict):
     query: str
     department: str | None
+    retrieval_scope: str
     collection_name: str
     top_k: int
     top_n: int
@@ -48,6 +49,7 @@ async def run_agent_query(workflow_input: AgentWorkflowInput) -> AgentWorkflowRe
     initial_state: _AgentGraphState = {
         "query": workflow_input.query,
         "department": workflow_input.department,
+        "retrieval_scope": workflow_input.retrieval_scope,
         "collection_name": workflow_input.collection_name,
         "top_k": workflow_input.top_k,
         "top_n": workflow_input.top_n,
@@ -79,6 +81,7 @@ async def stream_agent_query(
     state: _AgentGraphState = {
         "query": workflow_input.query,
         "department": workflow_input.department,
+        "retrieval_scope": workflow_input.retrieval_scope,
         "collection_name": workflow_input.collection_name,
         "top_k": workflow_input.top_k,
         "top_n": workflow_input.top_n,
@@ -180,6 +183,10 @@ async def _retrieve_evidence(state: _AgentGraphState) -> dict[str, Any]:
         top_k=state["top_k"],
         top_n=state["top_n"],
         collection_name=state["collection_name"],
+        retrieval_scope=state["retrieval_scope"],
+        project_slug=(
+            state["project_slug"] if state["retrieval_scope"] == "source_code" else None
+        ),
     )
     chunks = critic_result.selected.reranked
     decision = critic_result.selected.decision
@@ -260,11 +267,22 @@ def _route_after_retrieval(state: _AgentGraphState) -> str:
 
 
 def _source_from_chunk(chunk: dict) -> Source:
-    return Source(
+    if chunk.get("source_kind") == "source_code":
+        return SourceCodeSource(
+            project_slug=chunk.get("project_slug", ""),
+            relative_path=chunk.get("relative_path", ""),
+            language=chunk.get("language", ""),
+            start_line=int(chunk.get("start_line") or 0),
+            end_line=int(chunk.get("end_line") or 0),
+            score=float(chunk.get("score") or 0.0),
+            score_source=chunk.get("score_source", "retrieval"),
+        )
+    return DocumentSource(
         file=chunk.get("file", ""),
         page=chunk.get("page", 0),
         section=chunk.get("section", ""),
         score=float(chunk.get("score") or 0.0),
+        score_source=chunk.get("score_source", "retrieval"),
     )
 
 

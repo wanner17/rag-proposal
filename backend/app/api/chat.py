@@ -1,7 +1,7 @@
 import json
 from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
-from app.models.schemas import ChatRequest, ChatResponse, Source, UserInfo
+from app.models.schemas import ChatRequest, ChatResponse, DocumentSource, UserInfo
 from app.core.auth import get_current_user, resolve_department_scope
 from app.services.retrieval import retrieve_with_critic
 from app.services.llm import generate, generate_stream
@@ -25,11 +25,12 @@ async def chat(req: ChatRequest, user: UserInfo = Depends(get_current_user)):
 
     answer = await generate(req.query, chunks)
     sources = [
-        Source(
+        DocumentSource(
             file=c.get("file", ""),
             page=c.get("page", 0),
             section=c.get("section", ""),
             score=c.get("score", 0.0),
+            score_source=c.get("score_source", "retrieval"),
         )
         for c in chunks
     ]
@@ -44,8 +45,13 @@ async def chat_stream(req: ChatRequest, user: UserInfo = Depends(get_current_use
     critic_result = await retrieve_with_critic(req.query, department=department, top_n=5)
     chunks = critic_result.selected.reranked
     sources = [
-        Source(file=c.get("file", ""), page=c.get("page", 0),
-               section=c.get("section", ""), score=c.get("score", 0.0))
+        DocumentSource(
+            file=c.get("file", ""),
+            page=c.get("page", 0),
+            section=c.get("section", ""),
+            score=c.get("score", 0.0),
+            score_source=c.get("score_source", "retrieval"),
+        )
         for c in chunks
     ]
 

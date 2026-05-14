@@ -14,6 +14,7 @@ from app.models.project_schemas import (
     ProjectPluginBinding,
     ProjectRagConfig,
     ProjectResponse,
+    ProjectSourceConfig,
     ProjectUpdateRequest,
 )
 from app.plugin_runtime import get_enabled_plugins
@@ -49,11 +50,15 @@ def _connect() -> sqlite3.Connection:
             default_language TEXT NOT NULL,
             plugins_json TEXT NOT NULL,
             rag_json TEXT NOT NULL,
+            source_json TEXT,
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL
         )
         """
     )
+    columns = {row["name"] for row in conn.execute("PRAGMA table_info(projects)").fetchall()}
+    if "source_json" not in columns:
+        conn.execute("ALTER TABLE projects ADD COLUMN source_json TEXT")
     conn.commit()
     return conn
 
@@ -82,6 +87,9 @@ def _row_to_project(row: sqlite3.Row) -> ProjectResponse:
         default_language=row["default_language"],
         plugins=[ProjectPluginBinding.model_validate(item) for item in json.loads(row["plugins_json"])],
         rag_config=ProjectRagConfig.model_validate(json.loads(row["rag_json"])),
+        source_config=ProjectSourceConfig.model_validate(
+            json.loads(row["source_json"]) if row["source_json"] else {}
+        ),
         created_at=datetime.fromisoformat(row["created_at"]),
         updated_at=datetime.fromisoformat(row["updated_at"]),
     )
@@ -108,8 +116,8 @@ def ensure_default_project() -> ProjectResponse:
             """
             INSERT INTO projects (
                 id, slug, name, description, status, default_language,
-                plugins_json, rag_json, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                plugins_json, rag_json, source_json, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 DEFAULT_PROJECT_ID,
@@ -120,6 +128,7 @@ def ensure_default_project() -> ProjectResponse:
                 "ko",
                 json.dumps([plugin.model_dump() for plugin in plugins], ensure_ascii=False),
                 json.dumps(rag.model_dump(), ensure_ascii=False),
+                json.dumps(ProjectSourceConfig().model_dump(), ensure_ascii=False),
                 now,
                 now,
             ),
@@ -145,6 +154,15 @@ def get_project(project_id: str) -> ProjectResponse:
         return _row_to_project(row)
 
 
+def get_project_by_slug(project_slug: str) -> ProjectResponse:
+    ensure_default_project()
+    with _connect() as conn:
+        row = conn.execute("SELECT * FROM projects WHERE slug = ?", (project_slug,)).fetchone()
+        if not row:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="프로젝트를 찾을 수 없습니다")
+        return _row_to_project(row)
+
+
 def get_default_project() -> ProjectResponse:
     return ensure_default_project()
 
@@ -159,8 +177,8 @@ def create_project(request: ProjectCreateRequest) -> ProjectResponse:
                 """
                 INSERT INTO projects (
                     id, slug, name, description, status, default_language,
-                    plugins_json, rag_json, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    plugins_json, rag_json, source_json, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     project_id,
@@ -171,6 +189,7 @@ def create_project(request: ProjectCreateRequest) -> ProjectResponse:
                     request.default_language,
                     json.dumps([plugin.model_dump() for plugin in request.plugins], ensure_ascii=False),
                     json.dumps(request.rag_config.model_dump(), ensure_ascii=False),
+                    json.dumps(request.source_config.model_dump(), ensure_ascii=False),
                     now,
                     now,
                 ),
@@ -185,13 +204,14 @@ def update_project(project_id: str, request: ProjectUpdateRequest) -> ProjectRes
     current = get_project(project_id)
     plugins = request.plugins if request.plugins is not None else current.plugins
     rag = request.rag_config if request.rag_config is not None else current.rag_config
+    source = request.source_config if request.source_config is not None else current.source_config
     _validate_plugins(plugins)
     with _connect() as conn:
         conn.execute(
             """
             UPDATE projects
                SET name = ?, description = ?, status = ?, default_language = ?,
-                   plugins_json = ?, rag_json = ?, updated_at = ?
+                   plugins_json = ?, rag_json = ?, source_json = ?, updated_at = ?
              WHERE id = ?
             """,
             (
@@ -201,6 +221,7 @@ def update_project(project_id: str, request: ProjectUpdateRequest) -> ProjectRes
                 request.default_language if request.default_language is not None else current.default_language,
                 json.dumps([plugin.model_dump() for plugin in plugins], ensure_ascii=False),
                 json.dumps(rag.model_dump(), ensure_ascii=False),
+                json.dumps(source.model_dump(), ensure_ascii=False),
                 _utc_now(),
                 project_id,
             ),
@@ -231,6 +252,7 @@ def import_project(bundle: str) -> ProjectResponse:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="프로젝트 번들에 project가 없습니다")
 
     rag = ProjectRagConfig.model_validate(raw_project.get("rag_config") or {})
+    source = ProjectSourceConfig.model_validate(raw_project.get("source_config") or {})
     plugins = [ProjectPluginBinding.model_validate(item) for item in raw_project.get("plugins") or []]
     _validate_plugins(plugins)
     existing_slug = raw_project.get("slug")
@@ -249,6 +271,7 @@ def import_project(bundle: str) -> ProjectResponse:
                 default_language=raw_project.get("default_language", "ko"),
                 plugins=plugins,
                 rag_config=rag,
+                source_config=source,
             ),
         )
 
@@ -261,5 +284,6 @@ def import_project(bundle: str) -> ProjectResponse:
             default_language=raw_project.get("default_language", "ko"),
             plugins=plugins,
             rag_config=rag,
+            source_config=source,
         )
     )

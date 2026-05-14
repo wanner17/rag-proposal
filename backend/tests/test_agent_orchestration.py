@@ -10,7 +10,7 @@ from app.core.auth import create_token
 from app.core.config import settings
 from app.main import app
 from app.models.project_schemas import ProjectCreateRequest, ProjectRagConfig
-from app.models.schemas import Source
+from app.models.schemas import DocumentSource
 from app.services.agent_orchestration import workflow
 from app.services.agent_orchestration.types import (
     AgentWorkflowResult,
@@ -86,7 +86,7 @@ def test_agent_query_endpoint_returns_metadata_contract(tmp_path, monkeypatch):
         assert workflow_input.collection_name
         return AgentWorkflowResult(
             answer="생성된 답변",
-            sources=[Source(file="manual.pdf", page=3, section="개요", score=0.91)],
+            sources=[DocumentSource(file="manual.pdf", page=3, section="개요", score=0.91)],
             found=True,
             graph_run_id="run-test",
             framework="langgraph",
@@ -133,7 +133,14 @@ def test_agent_query_endpoint_returns_metadata_contract(tmp_path, monkeypatch):
     assert payload["answer"] == "생성된 답변"
     assert payload["found"] is True
     assert payload["sources"] == [
-        {"file": "manual.pdf", "page": 3, "section": "개요", "score": 0.91}
+        {
+            "source_kind": "document",
+            "file": "manual.pdf",
+            "page": 3,
+            "section": "개요",
+            "score": 0.91,
+            "score_source": "retrieval",
+        }
     ]
     assert payload["metadata"]["framework"] == "langgraph"
     assert payload["metadata"]["graph_version"] == "agent-query-v1"
@@ -271,6 +278,60 @@ def test_agent_query_uses_project_rag_config_and_user_department_scope(tmp_path,
     assert payload["metadata"]["collection_name"] == "manual-docs"
 
 
+def test_agent_query_source_scope_uses_project_without_department_filter(tmp_path, monkeypatch):
+    from fastapi import FastAPI
+    import app.api.agent as agent_api
+
+    monkeypatch.setattr(settings, "PROJECT_DB_PATH", str(tmp_path / "projects.sqlite3"))
+    project = create_project(
+        ProjectCreateRequest(
+            slug="manual-code",
+            name="매뉴얼 코드",
+            description="소스 코드 질의응답",
+            plugins=[],
+            rag_config=ProjectRagConfig(
+                collection_name="manual-code",
+                top_k_default=17,
+                top_n_default=4,
+                prompt_profile="manual",
+                storage_namespace="manual-code",
+            ),
+        )
+    )
+
+    async def fake_run_agent_query(workflow_input):
+        assert workflow_input.project_id == project.id
+        assert workflow_input.project_slug == "manual-code"
+        assert workflow_input.collection_name == "manual-code"
+        assert workflow_input.retrieval_scope == "source_code"
+        assert workflow_input.department is None
+        return AgentWorkflowResult(
+            answer="소스 답변",
+            sources=[],
+            found=False,
+            graph_run_id="run-source",
+        )
+
+    monkeypatch.setattr(agent_api, "run_agent_query", fake_run_agent_query)
+    test_app = FastAPI()
+    test_app.include_router(agent_router, prefix="/api")
+    client = TestClient(test_app)
+
+    response = client.post(
+        "/api/agent/query",
+        headers=_headers("user1", "공공사업팀", False),
+        json={
+            "query": "App 클래스 설명",
+            "project_id": project.id,
+            "department": "다른부서",
+            "retrieval_scope": "source_code",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["metadata"]["project_slug"] == "manual-code"
+
+
 def test_build_graph_reports_clear_error_when_langgraph_is_missing(monkeypatch):
     original_import = builtins.__import__
 
@@ -305,6 +366,7 @@ def test_graph_nodes_return_no_results_without_generation(monkeypatch):
     state = {
         "query": "없는 근거",
         "department": None,
+        "retrieval_scope": "documents",
         "collection_name": "test-docs",
         "top_k": 20,
         "top_n": 5,
@@ -355,6 +417,7 @@ def test_graph_nodes_generate_answer_with_trace_metadata(monkeypatch):
     state = {
         "query": "클라우드 전환 전략",
         "department": "공공사업팀",
+        "retrieval_scope": "documents",
         "collection_name": "test-docs",
         "top_k": 20,
         "top_n": 5,
@@ -423,6 +486,7 @@ def test_agent_stream_reviews_accumulated_answer_and_preserves_tokens(monkeypatc
                 workflow.AgentWorkflowInput(
                     query="보안과 DR 전략",
                     department=None,
+                    retrieval_scope="documents",
                     collection_name="test-docs",
                     top_k=20,
                     top_n=5,
@@ -458,6 +522,30 @@ def test_agent_stream_reviews_accumulated_answer_and_preserves_tokens(monkeypatc
             "revision_recommended": True,
         },
     ]
+
+
+def test_source_chunk_maps_to_source_code_citation():
+    source = workflow._source_from_chunk(
+        {
+            "source_kind": "source_code",
+            "project_slug": "manual-code",
+            "relative_path": "src/App.java",
+            "language": "java",
+            "start_line": 10,
+            "end_line": 20,
+            "score": 0.93,
+            "score_source": "rerank",
+        }
+    )
+
+    assert source.source_kind == "source_code"
+    assert source.project_slug == "manual-code"
+    assert source.relative_path == "src/App.java"
+    assert source.language == "java"
+    assert source.start_line == 10
+    assert source.end_line == 20
+    assert source.score == 0.93
+    assert source.score_source == "rerank"
 
 
 def test_answer_quality_marks_requested_item_unavailable():

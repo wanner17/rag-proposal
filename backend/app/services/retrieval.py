@@ -5,6 +5,8 @@ from qdrant_client.models import (
     Prefetch, FusionQuery, Fusion, FilterSelector,
 )
 from kiwipiepy import Kiwi
+from typing import Literal
+
 from app.core.config import settings
 from app.services.embedding import get_embedding
 from app.services.reranker import rerank
@@ -80,12 +82,46 @@ async def index_chunks(chunks: list[dict], collection_name: str | None = None):
     await client.upsert(collection_name=target_collection, points=points)
 
 
+RetrievalScope = Literal["documents", "source_code"]
+
+
 def _department_filter(department: str | None) -> Filter | None:
     if not department:
         return None
     return Filter(
         must=[FieldCondition(key="department", match=MatchValue(value=department))]
     )
+
+
+def _source_filter(project_slug: str) -> Filter:
+    return Filter(
+        must=[
+            FieldCondition(key="source_kind", match=MatchValue(value="source_code")),
+            FieldCondition(key="project_slug", match=MatchValue(value=project_slug)),
+        ]
+    )
+
+
+def _source_file_filter(project_slug: str, relative_path: str) -> Filter:
+    return Filter(
+        must=[
+            FieldCondition(key="source_kind", match=MatchValue(value="source_code")),
+            FieldCondition(key="project_slug", match=MatchValue(value=project_slug)),
+            FieldCondition(key="relative_path", match=MatchValue(value=relative_path)),
+        ]
+    )
+
+
+def _retrieval_filter(
+    department: str | None,
+    retrieval_scope: RetrievalScope = "documents",
+    project_slug: str | None = None,
+) -> Filter | None:
+    if retrieval_scope == "source_code":
+        if not project_slug:
+            raise ValueError("project_slug is required for source_code retrieval")
+        return _source_filter(project_slug)
+    return _department_filter(department)
 
 
 def _document_filter(file_name: str, department: str | None) -> Filter:
@@ -111,13 +147,15 @@ async def hybrid_search(
     department: str | None,
     top_k: int = 20,
     collection_name: str | None = None,
+    retrieval_scope: RetrievalScope = "documents",
+    project_slug: str | None = None,
 ) -> list[dict]:
     client = get_client()
     target_collection = collection_name or settings.QDRANT_COLLECTION
     dense_vec = await get_embedding(query)
     sparse_vec = _bm25_encode(query)
 
-    query_filter = _department_filter(department)
+    query_filter = _retrieval_filter(department, retrieval_scope, project_slug)
 
     results = await client.query_points(
         collection_name=target_collection,
@@ -166,6 +204,37 @@ async def delete_document_chunks(
     return True
 
 
+async def delete_source_chunks(
+    project_slug: str,
+    relative_path: str,
+    collection_name: str | None = None,
+) -> bool:
+    client = get_client()
+    target_collection = collection_name or settings.QDRANT_COLLECTION
+    selector = FilterSelector(filter=_source_file_filter(project_slug, relative_path))
+    await client.delete(
+        collection_name=target_collection,
+        points_selector=selector,
+        wait=True,
+    )
+    return True
+
+
+async def delete_project_source_chunks(
+    project_slug: str,
+    collection_name: str | None = None,
+) -> bool:
+    client = get_client()
+    target_collection = collection_name or settings.QDRANT_COLLECTION
+    selector = FilterSelector(filter=_source_filter(project_slug))
+    await client.delete(
+        collection_name=target_collection,
+        points_selector=selector,
+        wait=True,
+    )
+    return True
+
+
 def merge_rerank_scores(candidates: list[dict], reranked: list[dict]) -> list[dict]:
     """Merge reranker output into candidates without losing retrieval metadata."""
     result = []
@@ -186,13 +255,25 @@ async def retrieve_with_metadata(
     top_k: int = 20,
     top_n: int = 5,
     collection_name: str | None = None,
+    retrieval_scope: RetrievalScope = "documents",
+    project_slug: str | None = None,
 ) -> tuple[list[dict], list[dict]]:
-    candidates = await hybrid_search(
-        query,
-        department,
-        top_k=top_k,
-        collection_name=collection_name,
-    )
+    if retrieval_scope == "documents" and project_slug is None:
+        candidates = await hybrid_search(
+            query,
+            department,
+            top_k=top_k,
+            collection_name=collection_name,
+        )
+    else:
+        candidates = await hybrid_search(
+            query,
+            department,
+            top_k=top_k,
+            collection_name=collection_name,
+            retrieval_scope=retrieval_scope,
+            project_slug=project_slug,
+        )
     if not candidates:
         return [], []
     passages = [c["text"] for c in candidates]
@@ -206,14 +287,27 @@ async def retrieve_with_critic(
     top_k: int = 20,
     top_n: int = 5,
     collection_name: str | None = None,
+    retrieval_scope: RetrievalScope = "documents",
+    project_slug: str | None = None,
 ) -> CriticResult:
-    initial_candidates, initial_reranked = await retrieve_with_metadata(
-        query,
-        department,
-        top_k=top_k,
-        top_n=top_n,
-        collection_name=collection_name,
-    )
+    if retrieval_scope == "documents" and project_slug is None:
+        initial_candidates, initial_reranked = await retrieve_with_metadata(
+            query,
+            department,
+            top_k=top_k,
+            top_n=top_n,
+            collection_name=collection_name,
+        )
+    else:
+        initial_candidates, initial_reranked = await retrieve_with_metadata(
+            query,
+            department,
+            top_k=top_k,
+            top_n=top_n,
+            collection_name=collection_name,
+            retrieval_scope=retrieval_scope,
+            project_slug=project_slug,
+        )
     initial_decision = assess_retrieval(
         query,
         initial_reranked,
@@ -231,13 +325,24 @@ async def retrieve_with_critic(
         return CriticResult(selected=initial_pass, initial=initial_pass)
 
     retry_plan = build_retry_plan(top_k, top_n, initial_decision.trigger_reasons)
-    retry_candidates, retry_reranked = await retrieve_with_metadata(
-        query,
-        department,
-        top_k=retry_plan.top_k,
-        top_n=retry_plan.top_n,
-        collection_name=collection_name,
-    )
+    if retrieval_scope == "documents" and project_slug is None:
+        retry_candidates, retry_reranked = await retrieve_with_metadata(
+            query,
+            department,
+            top_k=retry_plan.top_k,
+            top_n=retry_plan.top_n,
+            collection_name=collection_name,
+        )
+    else:
+        retry_candidates, retry_reranked = await retrieve_with_metadata(
+            query,
+            department,
+            top_k=retry_plan.top_k,
+            top_n=retry_plan.top_n,
+            collection_name=collection_name,
+            retrieval_scope=retrieval_scope,
+            project_slug=project_slug,
+        )
     retry_decision = assess_retrieval(
         query,
         retry_reranked,
@@ -260,6 +365,8 @@ async def retrieve(
     department: str | None,
     top_n: int = 5,
     collection_name: str | None = None,
+    retrieval_scope: RetrievalScope = "documents",
+    project_slug: str | None = None,
 ) -> list[dict]:
     critic_result = await retrieve_with_critic(
         query,
@@ -267,5 +374,7 @@ async def retrieve(
         top_k=20,
         top_n=top_n,
         collection_name=collection_name,
+        retrieval_scope=retrieval_scope,
+        project_slug=project_slug,
     )
     return critic_result.selected.reranked

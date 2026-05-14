@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Annotated, Literal, Optional
 from pydantic import BaseModel, Field
 
 
@@ -26,11 +26,27 @@ class IngestRequest(BaseModel):
     department: str
 
 
-class Source(BaseModel):
+class DocumentSource(BaseModel):
+    source_kind: Literal["document"] = "document"
     file: str
     page: int
     section: str
     score: float
+    score_source: str = "retrieval"
+
+
+class SourceCodeSource(BaseModel):
+    source_kind: Literal["source_code"] = "source_code"
+    project_slug: str
+    relative_path: str
+    language: str
+    start_line: int
+    end_line: int
+    score: float
+    score_source: str = "retrieval"
+
+
+Source = Annotated[DocumentSource | SourceCodeSource, Field(discriminator="source_kind")]
 
 
 class ChatRequest(BaseModel):

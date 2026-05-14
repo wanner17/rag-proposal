@@ -1,7 +1,7 @@
 import json
 from dataclasses import asdict
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import StreamingResponse
 
@@ -23,7 +23,16 @@ router = APIRouter(prefix="/agent", tags=["agent"])
 @router.post("/query", response_model=AgentQueryResponse)
 async def query_agent(req: AgentQueryRequest, user: UserInfo = Depends(get_current_user)):
     project = get_project(req.project_id) if req.project_id else get_default_project()
-    department = resolve_department_scope(user, req.department)
+    if req.retrieval_scope == "source_code" and project.status != "active":
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="활성 프로젝트 소스만 조회할 수 있습니다.",
+        )
+    department = (
+        None
+        if req.retrieval_scope == "source_code"
+        else resolve_department_scope(user, req.department)
+    )
     workflow_result = await run_agent_query(
         AgentWorkflowInput(
             query=req.query,
@@ -33,6 +42,7 @@ async def query_agent(req: AgentQueryRequest, user: UserInfo = Depends(get_curre
             collection_name=project.rag_config.collection_name,
             top_k=req.top_k or project.rag_config.top_k_default,
             top_n=req.top_n or project.rag_config.top_n_default,
+            retrieval_scope=req.retrieval_scope,
         )
     )
     return AgentQueryResponse(
@@ -70,7 +80,16 @@ async def query_agent(req: AgentQueryRequest, user: UserInfo = Depends(get_curre
 @router.post("/stream")
 async def stream_agent(req: AgentQueryRequest, user: UserInfo = Depends(get_current_user)):
     project = get_project(req.project_id) if req.project_id else get_default_project()
-    department = resolve_department_scope(user, req.department)
+    if req.retrieval_scope == "source_code" and project.status != "active":
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="활성 프로젝트 소스만 조회할 수 있습니다.",
+        )
+    department = (
+        None
+        if req.retrieval_scope == "source_code"
+        else resolve_department_scope(user, req.department)
+    )
     workflow_input = AgentWorkflowInput(
         query=req.query,
         department=department,
@@ -79,6 +98,7 @@ async def stream_agent(req: AgentQueryRequest, user: UserInfo = Depends(get_curr
         collection_name=project.rag_config.collection_name,
         top_k=req.top_k or project.rag_config.top_k_default,
         top_n=req.top_n or project.rag_config.top_n_default,
+        retrieval_scope=req.retrieval_scope,
     )
 
     async def event_stream():

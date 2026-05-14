@@ -6,6 +6,7 @@ import httpx
 from app.services.llm import (
     LLM_PARAMS,
     SYSTEM_PROMPT,
+    _build_messages,
     _completion_retry_query,
     _looks_incomplete_answer,
     _requested_item_count,
@@ -46,6 +47,24 @@ def test_completion_retry_preserves_requested_strategy_count():
         "공공기관 클라우드 전환 제안서에서 보안, DR, 단계별 이행계획, "
         "운영 조직, 장애 대응까지 포함해 제안 전략을 우선순위별로 정리해줘."
     )
+
+
+def test_chat_prompt_formats_source_code_citations_with_path_and_lines():
+    messages = _build_messages(
+        "App 클래스 설명",
+        [
+            {
+                "source_kind": "source_code",
+                "relative_path": "src/App.java",
+                "start_line": 10,
+                "end_line": 20,
+                "text": "public class App {}",
+            }
+        ],
+    )
+
+    assert "[출처: src/App.java:10-20]" in messages[1]["content"]
+    assert "public class App {}" in messages[1]["content"]
 
     assert _requested_item_count(query) == 5
     assert _required_retry_items(query) == ["보안", "DR", "단계별 이행계획", "운영 조직", "장애 대응"]

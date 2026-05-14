@@ -36,6 +36,7 @@ services:
       - "8088:8000"   # MuseTalk이 8000 점유 중이라 8088 사용
     volumes:
       - ./volumes/documents:/app/documents     # 문서 업로드 저장소
+      - ${RAG_SOURCE_BASE_PATH:-/opt/rag-projects}:/opt/rag-projects:ro  # SVN working copy source roots
 
   nginx:
     image: nginx:alpine    # arm64 지원

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Literal
 
 from app.models.schemas import Source
 from app.services.retrieval_critic import CriticResult
@@ -16,6 +16,7 @@ class AgentWorkflowInput:
     collection_name: str
     top_k: int
     top_n: int
+    retrieval_scope: Literal["documents", "source_code"] = "documents"
 
 
 @dataclass

@@ -23,6 +23,8 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("QDRANT_COLLECTION", "RAG_COLLECTION"),
     )
     PROJECT_DB_PATH: str = "data/projects.sqlite3"
+    SOURCE_INDEX_LOCK_TIMEOUT_SECONDS: int = 3600
+    SOURCE_INDEX_API_TOKEN: str | None = None
     RAG_ENABLED_PLUGINS: str = "proposal"
     ENABLE_AGENT_ORCHESTRATION: bool = False
     SECRET_KEY: str = "change-me"

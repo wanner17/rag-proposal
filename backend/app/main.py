@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
-from app.api import auth, chat, documents, ingest, projects
+from app.api import auth, chat, documents, ingest, projects, source_index
 from app.plugin_runtime import enabled_plugin_metadata, register_plugin_routers
 from app.services.retrieval import ensure_collection
 from app.services.projects import ensure_default_project
@@ -33,6 +33,7 @@ app.include_router(chat.router, prefix="/api")
 app.include_router(documents.router, prefix="/api")
 app.include_router(ingest.router, prefix="/api")
 app.include_router(projects.router, prefix="/api")
+app.include_router(source_index.router, prefix="/api")
 if settings.ENABLE_AGENT_ORCHESTRATION:
     from app.api import agent
 

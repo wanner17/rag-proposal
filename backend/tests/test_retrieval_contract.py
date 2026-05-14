@@ -1,5 +1,6 @@
 import asyncio
 import pytest
+from qdrant_client.models import FieldCondition, MatchValue
 
 from app.services import retrieval
 
@@ -68,3 +69,77 @@ def test_retrieve_with_metadata_returns_candidates_and_reranked(monkeypatch):
     assert candidates[0]["retrieval_score"] is not None
     assert reranked[0]["rerank_score"] == pytest.approx(0.88)
     assert reranked[0]["retrieval_score"] == candidates[0]["retrieval_score"]
+
+
+def test_source_filter_uses_source_kind_and_project_slug_without_department():
+    query_filter = retrieval._retrieval_filter(
+        department="공공사업팀",
+        retrieval_scope="source_code",
+        project_slug="manual-qa",
+    )
+
+    assert query_filter is not None
+    conditions = query_filter.must
+    assert conditions == [
+        FieldCondition(key="source_kind", match=MatchValue(value="source_code")),
+        FieldCondition(key="project_slug", match=MatchValue(value="manual-qa")),
+    ]
+
+
+def test_source_retrieve_with_metadata_passes_project_slug_and_scope(monkeypatch):
+    captured = {}
+
+    async def fake_hybrid_search(
+        query,
+        department,
+        top_k=20,
+        collection_name=None,
+        retrieval_scope="documents",
+        project_slug=None,
+    ):
+        captured.update(
+            {
+                "department": department,
+                "collection_name": collection_name,
+                "retrieval_scope": retrieval_scope,
+                "project_slug": project_slug,
+            }
+        )
+        return [
+            {
+                "text": "class App {}",
+                "source_kind": "source_code",
+                "project_slug": "manual-qa",
+                "relative_path": "src/App.java",
+                "language": "java",
+                "start_line": 10,
+                "end_line": 20,
+                "score": 0.7,
+            }
+        ]
+
+    async def fake_rerank(query, passages, top_n=5):
+        return [{"original_index": 0, "score": 0.93}]
+
+    monkeypatch.setattr(retrieval, "hybrid_search", fake_hybrid_search)
+    monkeypatch.setattr(retrieval, "rerank", fake_rerank)
+
+    _, reranked = asyncio.run(
+        retrieval.retrieve_with_metadata(
+            "질문",
+            "공공사업팀",
+            collection_name="manual-code",
+            retrieval_scope="source_code",
+            project_slug="manual-qa",
+        )
+    )
+
+    assert captured == {
+        "department": "공공사업팀",
+        "collection_name": "manual-code",
+        "retrieval_scope": "source_code",
+        "project_slug": "manual-qa",
+    }
+    assert reranked[0]["source_kind"] == "source_code"
+    assert reranked[0]["relative_path"] == "src/App.java"
+    assert reranked[0]["score_source"] == "rerank"

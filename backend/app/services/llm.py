@@ -68,13 +68,24 @@ def _build_messages(
     query: str, chunks: list[dict], chunk_text_limit: int = CHUNK_TEXT_LIMIT
 ) -> list[dict]:
     context = "\n\n---\n\n".join(
-        f"[출처: {c['file']} p{c['page']}]\n{_truncate_text(c['text'], chunk_text_limit)}"
+        f"[출처: {_source_label(c)}]\n{_truncate_text(c['text'], chunk_text_limit)}"
         for c in chunks
     )
     return [
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": f"참고 문서:\n{context}\n\n질문: {query} /no_think"},
     ]
+
+
+def _source_label(chunk: dict) -> str:
+    if chunk.get("source_kind") == "source_code":
+        relative_path = chunk.get("relative_path", "")
+        start_line = chunk.get("start_line")
+        end_line = chunk.get("end_line")
+        if start_line and end_line:
+            return f"{relative_path}:{start_line}-{end_line}"
+        return relative_path
+    return f"{chunk['file']} p{chunk['page']}"
 
 
 def _requested_item_count(query: str) -> int:

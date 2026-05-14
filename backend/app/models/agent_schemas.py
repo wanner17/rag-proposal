@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -9,6 +9,7 @@ class AgentQueryRequest(BaseModel):
     query: str = Field(..., min_length=1, max_length=1000)
     project_id: str | None = None
     department: str | None = None
+    retrieval_scope: Literal["documents", "source_code"] = "documents"
     top_k: int | None = Field(default=None, ge=1, le=50)
     top_n: int | None = Field(default=None, ge=1, le=10)
 

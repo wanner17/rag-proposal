@@ -24,6 +24,16 @@ def _payload(slug="manual-qa"):
             "prompt_profile": "manual-qa",
             "storage_namespace": slug,
         },
+        "source_config": {
+            "enabled": True,
+            "repo_root": f"/opt/rag-projects/e-myjob/{slug}",
+            "allowed_base_path": "/opt/rag-projects",
+            "include_globs": ["**/*.py", "**/*.java"],
+            "exclude_globs": [".svn/**", ".git/**", "node_modules/**", ".env"],
+            "max_file_size_bytes": 1048576,
+            "encoding": "utf-8",
+            "follow_symlinks": False,
+        },
     }
 
 
@@ -45,6 +55,8 @@ def test_project_crud_export_import_round_trip(tmp_path, monkeypatch):
     project = created.json()
     assert project["slug"] == "manual-qa"
     assert project["rag_config"]["collection_name"] == "manual-qa-docs"
+    assert project["source_config"]["enabled"] is True
+    assert project["source_config"]["repo_root"] == "/opt/rag-projects/e-myjob/manual-qa"
 
     patched = client.patch(
         f"/api/projects/{project['id']}",
@@ -52,16 +64,19 @@ def test_project_crud_export_import_round_trip(tmp_path, monkeypatch):
         json={
             "name": "매뉴얼 QA 운영",
             "rag_config": {**project["rag_config"], "top_n_default": 6},
+            "source_config": {**project["source_config"], "max_file_size_bytes": 2048},
             "plugins": project["plugins"],
         },
     )
     assert patched.status_code == 200
     assert patched.json()["name"] == "매뉴얼 QA 운영"
     assert patched.json()["rag_config"]["top_n_default"] == 6
+    assert patched.json()["source_config"]["max_file_size_bytes"] == 2048
 
     exported = client.get(f"/api/projects/{project['id']}/export", headers=_headers())
     assert exported.status_code == 200
     assert '"schema_version": 1' in exported.text
+    assert '"source_config"' in exported.text
 
     imported = client.post(
         "/api/projects/import",
@@ -71,3 +86,32 @@ def test_project_crud_export_import_round_trip(tmp_path, monkeypatch):
     assert imported.status_code == 200
     assert imported.json()["project"]["slug"] == "manual-qa"
     assert imported.json()["project"]["rag_config"]["top_n_default"] == 6
+    assert imported.json()["project"]["source_config"]["enabled"] is True
+    assert imported.json()["project"]["source_config"]["max_file_size_bytes"] == 2048
+
+
+def test_project_source_config_rejects_path_outside_allowed_base(tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, "PROJECT_DB_PATH", str(tmp_path / "projects.sqlite3"))
+    client = TestClient(app)
+
+    payload = _payload("unsafe-source")
+    payload["source_config"]["repo_root"] = "/tmp/unsafe-source"
+
+    response = client.post("/api/projects", headers=_headers(), json=payload)
+
+    assert response.status_code == 422
+
+
+def test_project_source_config_defaults_disabled(tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, "PROJECT_DB_PATH", str(tmp_path / "projects.sqlite3"))
+    client = TestClient(app)
+    payload = _payload("doc-only")
+    payload.pop("source_config")
+
+    response = client.post("/api/projects", headers=_headers(), json=payload)
+
+    assert response.status_code == 201
+    source_config = response.json()["source_config"]
+    assert source_config["enabled"] is False
+    assert source_config["repo_root"] is None
+    assert source_config["allowed_base_path"] == "/opt/rag-projects"

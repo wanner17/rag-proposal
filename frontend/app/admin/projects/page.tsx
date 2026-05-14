@@ -109,11 +109,7 @@ export default function ProjectAdminPage() {
       ...form,
       source_config: {
         ...sourceConfig,
-        repo_root: repoName
-          ? `/opt/rag-projects/${repoName}`
-          : form.slug
-          ? `/opt/rag-projects/${form.slug}`
-          : "",
+        repo_root: repoName ? `/opt/rag-projects/${repoName}` : "",
       },
     };
     try {
@@ -335,11 +331,7 @@ export default function ProjectAdminPage() {
                         <div className="sm:col-span-3">
                           {(() => {
                             const repoName = extractRepoName(sc.svn_url ?? "");
-                            const displayPath = repoName
-                              ? `/opt/rag-projects/${repoName}`
-                              : form.slug
-                              ? `/opt/rag-projects/${form.slug}`
-                              : "";
+                            const displayPath = repoName ? `/opt/rag-projects/${repoName}` : "";
                             return (
                               <Field
                                 label="파일 저장 경로 (서버 절대경로)"
@@ -374,9 +366,9 @@ export default function ProjectAdminPage() {
 }
 
 function extractRepoName(svnUrl: string): string {
-  const trunkIdx = svnUrl.indexOf("/trunk");
-  if (trunkIdx === -1) return "";
-  return svnUrl.substring(0, trunkIdx).split("/").pop() ?? "";
+  if (!svnUrl) return "";
+  const normalized = svnUrl.replace(/\/(trunk|branches\/[^/]+|tags\/[^/]+)\/?$/, "");
+  return normalized.split("/").pop() ?? "";
 }
 
 function toForm(project: Project): ProjectCreatePayload {

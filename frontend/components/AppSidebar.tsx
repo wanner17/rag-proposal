@@ -42,18 +42,18 @@ export default function AppSidebar() {
   }
 
   return (
-    <aside className="w-56 shrink-0 min-h-screen bg-white border-r border-gray-200 flex flex-col">
+    <aside className="flex w-64 shrink-0 flex-col border-r border-gray-200 bg-white min-h-screen shadow-sm">
       {/* 브랜드 */}
-      <div className="px-4 py-4 border-b border-gray-100">
-        <a href="/projects" className="text-sm font-bold text-gray-900 hover:text-blue-700">
+      <div className="flex h-16 shrink-0 items-center border-b border-gray-200 px-6">
+        <a href="/projects" className="text-lg font-bold tracking-tight text-gray-900 transition-colors hover:text-blue-600">
           사내 RAG 플랫폼
         </a>
       </div>
 
       {/* 프로젝트 목록 */}
-      <nav className="flex-1 overflow-y-auto py-2">
-        <p className="px-4 py-1 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
-          프로젝트
+      <nav className="flex-1 overflow-y-auto py-4">
+        <p className="mb-2 px-6 text-xs font-semibold uppercase tracking-wider text-gray-500">
+          내 프로젝트
         </p>
         {projects.map((project) => {
           const isExpanded = expandedSlug === project.slug;
@@ -82,29 +82,34 @@ export default function AppSidebar() {
                     router.push(`/chat?project=${project.slug}`);
                   }
                 }}
-                className={`w-full flex items-center justify-between px-4 py-2 text-sm text-left hover:bg-gray-50 transition-colors ${
-                  isCurrent ? "text-blue-700 font-medium" : "text-gray-700"
+                className={`group flex w-full items-center justify-between px-6 py-2.5 text-left text-sm font-medium transition-colors ${
+                  isCurrent ? "bg-blue-50/50 text-blue-600" : "text-gray-700 hover:bg-gray-50"
                 }`}
               >
                 <span className="truncate">{project.name}</span>
-                <span className="text-gray-400 ml-1 text-xs">{isExpanded ? "▾" : "▸"}</span>
+                <span className={`ml-1 text-xs transition-transform ${isExpanded ? "text-blue-600" : "text-gray-400 group-hover:text-gray-600"}`}>
+                  {isExpanded ? "▾" : "▸"}
+                </span>
               </button>
 
               {isExpanded && (
-                <div className="pl-3 pb-1">
-                  {subItems.map((item) => (
-                    <a
-                      key={item.href}
-                      href={item.href}
-                      className={`block px-3 py-1.5 text-sm rounded-md transition-colors ${
-                        isItemActive(item.basePath, project.slug)
-                          ? "bg-blue-50 text-blue-700 font-medium"
-                          : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-                      }`}
-                    >
-                      {item.label}
-                    </a>
-                  ))}
+                <div className="space-y-1 pb-2 pl-6 pr-4 pt-1">
+                  {subItems.map((item) => {
+                    const active = isItemActive(item.basePath, project.slug);
+                    return (
+                      <a
+                        key={item.href}
+                        href={item.href}
+                        className={`block rounded-md px-3 py-2 text-sm transition-colors ${
+                          active
+                            ? "bg-blue-50 font-semibold text-blue-700 ring-1 ring-inset ring-blue-700/10"
+                            : "font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                        }`}
+                      >
+                        {item.label}
+                      </a>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -113,22 +118,22 @@ export default function AppSidebar() {
       </nav>
 
       {/* 하단 */}
-      <div className="border-t border-gray-100 py-2">
+      <div className="space-y-1 border-t border-gray-200 p-4">
         <a
           href="/admin/projects"
-          className={`flex items-center gap-2 px-4 py-2 text-sm transition-colors ${
+          className={`flex items-center gap-x-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
             pathname.startsWith("/admin")
-              ? "text-blue-700 font-medium bg-blue-50"
-              : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+              ? "bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-700/10"
+              : "text-gray-700 hover:bg-gray-50 hover:text-gray-900"
           }`}
         >
-          <span>⚙️</span> 프로젝트 관리
+          <span className="text-base">⚙️</span> 프로젝트 관리
         </a>
         <button
           onClick={handleLogout}
-          className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-500 hover:bg-red-50 text-left transition-colors"
+          className="flex w-full items-center gap-x-3 rounded-md px-3 py-2 text-left text-sm font-medium text-red-600 transition-colors hover:bg-red-50"
         >
-          <span>→</span> 로그아웃
+          <span className="text-base text-red-500">→</span> 로그아웃
         </button>
       </div>
     </aside>

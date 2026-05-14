@@ -35,6 +35,7 @@ services:
     ports:
       - "8088:8000"   # MuseTalk이 8000 점유 중이라 8088 사용
     volumes:
+      - ./volumes/backend_data:/app/data       # 프로젝트/소스 인덱스 SQLite 상태
       - ./volumes/documents:/app/documents     # 문서 업로드 저장소
       - ${RAG_SOURCE_BASE_PATH:-/opt/rag-projects}:/opt/rag-projects:ro  # SVN working copy source roots
 

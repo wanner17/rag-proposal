@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "lastScanned": 1778637522808,
+  "lastScanned": 1778724166399,
   "projectRoot": "d:\\dev\\rag-proposal",
   "techStack": {
     "languages": [],
@@ -39,7 +39,7 @@
       "path": "backend",
       "purpose": null,
       "fileCount": 2,
-      "lastAccessed": 1778637522773,
+      "lastAccessed": 1778724166342,
       "keyFiles": [
         "Dockerfile",
         "requirements.txt"
@@ -49,7 +49,7 @@
       "path": "demo",
       "purpose": null,
       "fileCount": 1,
-      "lastAccessed": 1778637522774,
+      "lastAccessed": 1778724166343,
       "keyFiles": [
         "proposal-scenarios.json"
       ]
@@ -58,25 +58,27 @@
       "path": "deploy",
       "purpose": null,
       "fileCount": 0,
-      "lastAccessed": 1778637522775,
+      "lastAccessed": 1778724166344,
       "keyFiles": []
     },
     "docs": {
       "path": "docs",
       "purpose": "Documentation",
-      "fileCount": 3,
-      "lastAccessed": 1778637522776,
+      "fileCount": 5,
+      "lastAccessed": 1778724166345,
       "keyFiles": [
+        "agent-answer-quality.md",
         "ci-cd-deploy.md",
         "modular-rag-migration.md",
-        "proposal-demo.md"
+        "proposal-demo.md",
+        "svn-source-index-integration.md"
       ]
     },
     "embedding_service": {
       "path": "embedding_service",
       "purpose": null,
       "fileCount": 1,
-      "lastAccessed": 1778637522776,
+      "lastAccessed": 1778724166345,
       "keyFiles": [
         "app.py"
       ]
@@ -85,7 +87,7 @@
       "path": "frontend",
       "purpose": null,
       "fileCount": 9,
-      "lastAccessed": 1778637522777,
+      "lastAccessed": 1778724166346,
       "keyFiles": [
         "Dockerfile",
         "next-env.d.ts",
@@ -98,7 +100,7 @@
       "path": "nginx",
       "purpose": null,
       "fileCount": 1,
-      "lastAccessed": 1778637522778,
+      "lastAccessed": 1778724166346,
       "keyFiles": [
         "nginx.conf"
       ]
@@ -107,14 +109,14 @@
       "path": "plugins",
       "purpose": null,
       "fileCount": 0,
-      "lastAccessed": 1778637522778,
+      "lastAccessed": 1778724166347,
       "keyFiles": []
     },
     "reranker_service": {
       "path": "reranker_service",
       "purpose": null,
       "fileCount": 1,
-      "lastAccessed": 1778637522779,
+      "lastAccessed": 1778724166347,
       "keyFiles": [
         "app.py"
       ]
@@ -122,8 +124,8 @@
     "scripts": {
       "path": "scripts",
       "purpose": "Build/utility scripts",
-      "fileCount": 5,
-      "lastAccessed": 1778637522779,
+      "fileCount": 6,
+      "lastAccessed": 1778724166348,
       "keyFiles": [
         "install_llamacpp.sh",
         "install_vllm.sh",
@@ -136,7 +138,7 @@
       "path": "backend\\app",
       "purpose": "Application code",
       "fileCount": 2,
-      "lastAccessed": 1778637522780,
+      "lastAccessed": 1778724166349,
       "keyFiles": [
         "main.py",
         "__init__.py"
@@ -145,8 +147,8 @@
     "backend\\tests": {
       "path": "backend\\tests",
       "purpose": "Test files",
-      "fileCount": 15,
-      "lastAccessed": 1778637522781,
+      "fileCount": 19,
+      "lastAccessed": 1778724166349,
       "keyFiles": [
         "conftest.py",
         "test_agent_orchestration.py",
@@ -157,7 +159,7 @@
       "path": "frontend\\app",
       "purpose": "Application code",
       "fileCount": 3,
-      "lastAccessed": 1778637522783,
+      "lastAccessed": 1778724166351,
       "keyFiles": [
         "globals.css",
         "layout.tsx",
@@ -168,7 +170,7 @@
       "path": "frontend\\components",
       "purpose": "UI components",
       "fileCount": 2,
-      "lastAccessed": 1778637522783,
+      "lastAccessed": 1778724166352,
       "keyFiles": [
         "AppNav.tsx",
         "SourceCard.tsx"
@@ -178,7 +180,7 @@
       "path": "frontend\\lib",
       "purpose": "Library code",
       "fileCount": 3,
-      "lastAccessed": 1778637522783,
+      "lastAccessed": 1778724166352,
       "keyFiles": [
         "api.ts",
         "plugins.ts",
@@ -189,15 +191,99 @@
       "path": "frontend\\node_modules",
       "purpose": "Dependencies",
       "fileCount": 1,
-      "lastAccessed": 1778637522784,
+      "lastAccessed": 1778724166353,
       "keyFiles": []
     }
   },
   "hotPaths": [
     {
+      "path": "frontend\\app\\admin\\projects\\page.tsx",
+      "accessCount": 35,
+      "lastAccessed": 1778732423166,
+      "type": "file"
+    },
+    {
+      "path": "frontend\\app\\chat\\page.tsx",
+      "accessCount": 30,
+      "lastAccessed": 1778727962903,
+      "type": "file"
+    },
+    {
+      "path": "",
+      "accessCount": 14,
+      "lastAccessed": 1778724326368,
+      "type": "directory"
+    },
+    {
+      "path": "backend\\app\\core\\config.py",
+      "accessCount": 12,
+      "lastAccessed": 1778734138291,
+      "type": "file"
+    },
+    {
+      "path": "frontend\\lib\\projects.ts",
+      "accessCount": 10,
+      "lastAccessed": 1778732381857,
+      "type": "file"
+    },
+    {
+      "path": "frontend\\app\\login\\page.tsx",
+      "accessCount": 9,
+      "lastAccessed": 1778726192637,
+      "type": "file"
+    },
+    {
+      "path": "backend\\app\\api\\source_index.py",
+      "accessCount": 9,
+      "lastAccessed": 1778726703983,
+      "type": "file"
+    },
+    {
+      "path": "docker-compose.yml",
+      "accessCount": 9,
+      "lastAccessed": 1778733885916,
+      "type": "file"
+    },
+    {
       "path": "backend\\app\\services\\llm.py",
       "accessCount": 8,
       "lastAccessed": 1778388533071,
+      "type": "file"
+    },
+    {
+      "path": "frontend\\app\\documents\\page.tsx",
+      "accessCount": 8,
+      "lastAccessed": 1778727241103,
+      "type": "file"
+    },
+    {
+      "path": "frontend",
+      "accessCount": 8,
+      "lastAccessed": 1778728982346,
+      "type": "directory"
+    },
+    {
+      "path": "backend\\app\\models\\project_schemas.py",
+      "accessCount": 8,
+      "lastAccessed": 1778732377601,
+      "type": "file"
+    },
+    {
+      "path": "backend\\app\\api\\ingest.py",
+      "accessCount": 7,
+      "lastAccessed": 1778728685589,
+      "type": "file"
+    },
+    {
+      "path": "frontend\\app\\upload\\page.tsx",
+      "accessCount": 7,
+      "lastAccessed": 1778728710275,
+      "type": "file"
+    },
+    {
+      "path": "backend\\app\\services\\projects.py",
+      "accessCount": 7,
+      "lastAccessed": 1778731661409,
       "type": "file"
     },
     {
@@ -207,57 +293,45 @@
       "type": "file"
     },
     {
-      "path": "",
-      "accessCount": 6,
-      "lastAccessed": 1778459205868,
-      "type": "directory"
-    },
-    {
       "path": "frontend\\next.config.ts",
       "accessCount": 5,
       "lastAccessed": 1778388052340,
       "type": "file"
     },
     {
-      "path": "backend\\app\\api\\ingest.py",
-      "accessCount": 4,
-      "lastAccessed": 1778458064513,
+      "path": "backend\\app\\services\\retrieval.py",
+      "accessCount": 5,
+      "lastAccessed": 1778724976863,
       "type": "file"
     },
     {
-      "path": "frontend\\app\\login\\page.tsx",
-      "accessCount": 3,
-      "lastAccessed": 1778305002402,
-      "type": "file"
+      "path": "frontend\\plugins\\proposal\\pages\\ProposalPage.tsx",
+      "accessCount": 5,
+      "lastAccessed": 1778726018842,
+      "type": "directory"
     },
     {
-      "path": "backend\\app\\core\\config.py",
-      "accessCount": 3,
-      "lastAccessed": 1778319270393,
-      "type": "file"
-    },
-    {
-      "path": "frontend\\app\\upload\\page.tsx",
-      "accessCount": 3,
-      "lastAccessed": 1778458040493,
+      "path": "frontend\\app\\page.tsx",
+      "accessCount": 5,
+      "lastAccessed": 1778726176073,
       "type": "file"
     },
     {
       "path": "backend\\app\\services\\document_processor.py",
-      "accessCount": 3,
-      "lastAccessed": 1778458055998,
+      "accessCount": 4,
+      "lastAccessed": 1778724323389,
       "type": "file"
     },
     {
-      "path": "docker-compose.yml",
-      "accessCount": 3,
-      "lastAccessed": 1778459208446,
+      "path": "frontend\\app\\layout.tsx",
+      "accessCount": 4,
+      "lastAccessed": 1778725994934,
       "type": "file"
     },
     {
-      "path": "frontend\\app\\page.tsx",
-      "accessCount": 2,
-      "lastAccessed": 1778304992694,
+      "path": "frontend\\components\\AppSidebar.tsx",
+      "accessCount": 4,
+      "lastAccessed": 1778728577027,
       "type": "file"
     },
     {
@@ -273,16 +347,64 @@
       "type": "file"
     },
     {
-      "path": "frontend\\app\\layout.tsx",
-      "accessCount": 1,
-      "lastAccessed": 1778304721724,
+      "path": "embedding_service\\app.py",
+      "accessCount": 2,
+      "lastAccessed": 1778724319149,
+      "type": "file"
+    },
+    {
+      "path": "backend\\app\\services\\source_indexer.py",
+      "accessCount": 2,
+      "lastAccessed": 1778725000618,
+      "type": "file"
+    },
+    {
+      "path": "backend\\app\\services\\source_processor.py",
+      "accessCount": 2,
+      "lastAccessed": 1778725035906,
+      "type": "file"
+    },
+    {
+      "path": "frontend\\tailwind.config.ts",
+      "accessCount": 2,
+      "lastAccessed": 1778725374545,
+      "type": "file"
+    },
+    {
+      "path": "frontend\\app\\globals.css",
+      "accessCount": 2,
+      "lastAccessed": 1778725382048,
+      "type": "file"
+    },
+    {
+      "path": "frontend\\components\\AppNav.tsx",
+      "accessCount": 2,
+      "lastAccessed": 1778725831230,
+      "type": "file"
+    },
+    {
+      "path": "frontend\\lib\\plugins.ts",
+      "accessCount": 2,
+      "lastAccessed": 1778725834251,
+      "type": "file"
+    },
+    {
+      "path": "backend\\app\\services\\source_index_state.py",
+      "accessCount": 2,
+      "lastAccessed": 1778726646545,
       "type": "file"
     },
     {
       "path": "frontend\\lib\\api.ts",
-      "accessCount": 1,
-      "lastAccessed": 1778304724381,
+      "accessCount": 2,
+      "lastAccessed": 1778728598339,
       "type": "file"
+    },
+    {
+      "path": "backend\\app",
+      "accessCount": 2,
+      "lastAccessed": 1778728615359,
+      "type": "directory"
     },
     {
       "path": "frontend\\package.json",
@@ -300,18 +422,6 @@
       "path": "frontend\\postcss.config.mjs",
       "accessCount": 1,
       "lastAccessed": 1778304979475,
-      "type": "file"
-    },
-    {
-      "path": "frontend\\tailwind.config.ts",
-      "accessCount": 1,
-      "lastAccessed": 1778304983283,
-      "type": "file"
-    },
-    {
-      "path": "frontend\\app\\globals.css",
-      "accessCount": 1,
-      "lastAccessed": 1778304986867,
       "type": "file"
     },
     {
@@ -333,9 +443,57 @@
       "type": "directory"
     },
     {
-      "path": "frontend",
+      "path": "backend\\app\\services\\embedding.py",
       "accessCount": 1,
-      "lastAccessed": 1778457997969,
+      "lastAccessed": 1778724319965,
+      "type": "file"
+    },
+    {
+      "path": "scripts\\svn_update_and_index.sh",
+      "accessCount": 1,
+      "lastAccessed": 1778724990835,
+      "type": "file"
+    },
+    {
+      "path": "backend\\app\\models\\schemas.py",
+      "accessCount": 1,
+      "lastAccessed": 1778725002978,
+      "type": "file"
+    },
+    {
+      "path": "backend\\app\\models",
+      "accessCount": 1,
+      "lastAccessed": 1778725003233,
+      "type": "directory"
+    },
+    {
+      "path": "frontend\\app\\proposals\\page.tsx",
+      "accessCount": 1,
+      "lastAccessed": 1778725377479,
+      "type": "file"
+    },
+    {
+      "path": "frontend\\lib",
+      "accessCount": 1,
+      "lastAccessed": 1778725378752,
+      "type": "directory"
+    },
+    {
+      "path": "frontend\\plugins\\proposal",
+      "accessCount": 1,
+      "lastAccessed": 1778725386466,
+      "type": "directory"
+    },
+    {
+      "path": "frontend\\plugins\\proposal\\plugin.ts",
+      "accessCount": 1,
+      "lastAccessed": 1778725389001,
+      "type": "file"
+    },
+    {
+      "path": "frontend\\app",
+      "accessCount": 1,
+      "lastAccessed": 1778725389722,
       "type": "directory"
     }
   ],

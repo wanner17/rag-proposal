@@ -232,7 +232,7 @@ async def trigger_checkout(
         raise HTTPException(status_code=409, detail="이미 체크아웃이 진행 중입니다")
 
     background_tasks.add_task(run_checkout, project.slug, config)
-    return CheckoutStatusResponse(status="started", message="체크아웃을 시작했습니다", progress=0)
+    return CheckoutStatusResponse(status="running", message="체크아웃을 시작했습니다", progress=10)
 
 
 @router.get("/projects/{project_id}/source-index/checkout/status", response_model=CheckoutStatusResponse)

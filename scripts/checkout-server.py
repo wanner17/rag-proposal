@@ -35,6 +35,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
 logger = logging.getLogger("checkout-server")
 
 _running: set[str] = set()
+_status: dict[str, dict] = {}
 _lock = threading.Lock()
 
 
@@ -43,6 +44,11 @@ def _run(cmd: list[str], check: bool = True) -> subprocess.CompletedProcess:
     if check and result.returncode != 0:
         raise RuntimeError(f"{cmd[0]} failed (exit {result.returncode}): {result.stderr[-300:]}")
     return result
+
+
+def _set_status(project_slug: str, status: str, message: str) -> None:
+    with _lock:
+        _status[project_slug] = {"status": status, "message": message}
 
 
 def _vpn_connect() -> None:
@@ -71,6 +77,26 @@ def _vpn_disconnect() -> None:
     if SVN_IP and VPN_GATEWAY:
         _run(["ip", "route", "del", SVN_IP, "via", VPN_GATEWAY, "dev", "ppp0"], check=False)
     _run(["ipsec", "down", VPN_NAME], check=False)
+
+
+def _relative_svn_path(output_path: str, repo_root: str) -> str:
+    if not output_path:
+        return ""
+    normalized = output_path.replace("\\", "/").rstrip("/")
+    if not os.path.isabs(output_path):
+        repo_name = os.path.basename(os.path.abspath(repo_root))
+        if normalized == repo_name:
+            return ""
+        prefix = f"{repo_name}/"
+        if normalized.startswith(prefix):
+            return normalized[len(prefix):]
+        return normalized
+    repo_abs = os.path.abspath(repo_root)
+    path_abs = os.path.abspath(output_path)
+    try:
+        return os.path.relpath(path_abs, repo_abs).replace(os.sep, "/")
+    except ValueError:
+        return output_path.replace("\\", "/")
 
 
 def _svn_checkout_or_update(svn_url: str, repo_root: str) -> tuple[list[str], list[str], str]:
@@ -107,7 +133,12 @@ def _svn_checkout_or_update(svn_url: str, repo_root: str) -> tuple[list[str], li
         if not line:
             continue
         status = line[0]
-        path = line[1:].lstrip()
+        if status not in ("A", "U", "G", "R", "D"):
+            continue
+        path = _relative_svn_path(line[1:].lstrip(), repo_root)
+        if not path or path.startswith("../") or path == "..":
+            logger.warning(f"[SVN] skipping path outside repo_root: {line[1:].lstrip()}")
+            continue
         if status in ("A", "U", "G", "R"):
             changed.append(path)
         elif status == "D":
@@ -152,11 +183,15 @@ def _run_checkout(project_slug: str, svn_url: str, repo_root: str) -> None:
             return
         _running.add(project_slug)
     try:
+        _set_status(project_slug, "running", "VPN/SVN 작업 중")
         _vpn_connect()
         changed, deleted, revision = _svn_checkout_or_update(svn_url, repo_root)
+        _set_status(project_slug, "running", "소스 색인 API 호출 중")
         _call_source_index(project_slug, changed, deleted, revision)
+        _set_status(project_slug, "done", "체크아웃 및 색인 요청 완료")
         logger.info(f"[{project_slug}] checkout complete")
     except Exception as exc:
+        _set_status(project_slug, "error", str(exc))
         logger.error(f"[{project_slug}] checkout failed: {exc}")
     finally:
         try:
@@ -195,6 +230,7 @@ class Handler(BaseHTTPRequestHandler):
                 self._respond(409, {"status": "running", "message": "이미 진행 중입니다."})
                 return
 
+            _set_status(project_slug, "running", "체크아웃 대기 중")
             threading.Thread(
                 target=_run_checkout,
                 args=(project_slug, svn_url, repo_root),
@@ -210,7 +246,13 @@ class Handler(BaseHTTPRequestHandler):
             project_slug = parts[1]
             with _lock:
                 running = project_slug in _running
-            self._respond(200, {"status": "running" if running else "idle"})
+                state = _status.get(project_slug)
+            if running or (state and state.get("status") == "running"):
+                self._respond(200, state or {"status": "running", "message": "진행 중입니다."})
+            elif state and state.get("status") in {"done", "error"}:
+                self._respond(200, state)
+            else:
+                self._respond(200, {"status": "idle", "message": ""})
         else:
             self._respond(404, {"error": "not found"})
 

@@ -25,6 +25,7 @@ def _project(tmp_path):
                 enabled=True,
                 repo_root=tmp_path.as_posix(),
                 allowed_base_path=tmp_path.parent.as_posix(),
+                svn_url="svn://example.local/manual-code",
                 include_globs=["**/*.py"],
                 exclude_globs=[".svn/**"],
             ),
@@ -283,3 +284,56 @@ def test_source_repair_route_calls_repairer(tmp_path, monkeypatch):
     assert response.status_code == 200
     assert captured == {"project_id": project.id, "svn_revision": "101"}
     assert response.json()["mode"] == "repair"
+
+
+def test_checkout_route_returns_running_state(tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, "PROJECT_DB_PATH", str(tmp_path / "projects.sqlite3"))
+    project = _project(tmp_path)
+    captured = {}
+
+    from app.services import svn_checkout
+
+    monkeypatch.setattr(svn_checkout, "_checkout_state", {})
+
+    async def fake_run_checkout(project_slug, config):
+        captured["project_slug"] = project_slug
+        captured["svn_url"] = config.svn_url
+        captured["repo_root"] = config.repo_root
+
+    monkeypatch.setattr("app.services.svn_checkout.run_checkout", fake_run_checkout)
+    client = TestClient(app)
+
+    response = client.post(
+        f"/api/projects/{project.id}/source-index/checkout",
+        headers=_headers(),
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "status": "running",
+        "message": "체크아웃을 시작했습니다",
+        "progress": 10,
+    }
+    assert captured == {
+        "project_slug": "manual-code",
+        "svn_url": "svn://example.local/manual-code",
+        "repo_root": tmp_path.as_posix(),
+    }
+
+
+def test_checkout_route_rejects_running_checkout(tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, "PROJECT_DB_PATH", str(tmp_path / "projects.sqlite3"))
+    project = _project(tmp_path)
+
+    from app.services import svn_checkout
+
+    monkeypatch.setattr(svn_checkout, "_checkout_state", {})
+    svn_checkout._set_status(project.slug, "running", "진행 중", 20)
+    client = TestClient(app)
+
+    response = client.post(
+        f"/api/projects/{project.id}/source-index/checkout",
+        headers=_headers(),
+    )
+
+    assert response.status_code == 409

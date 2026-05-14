@@ -78,10 +78,21 @@ async def _poll_status(project_slug: str) -> None:
             elapsed += interval
             try:
                 resp = await client.get(status_url)
-                if resp.status_code == 200 and resp.json().get("status") == "idle":
-                    _set_status(project_slug, "done", "완료", 100)
+                if resp.status_code != 200:
+                    continue
+                payload = resp.json()
+                host_status = payload.get("status")
+                host_message = payload.get("message")
+                if host_status in {"done", "idle"}:
+                    _set_status(project_slug, "done", host_message or "완료", 100)
                     logger.info(f"[SVN] checkout done: {project_slug}")
                     return
+                if host_status == "error":
+                    _set_status(project_slug, "error", host_message or "호스트 체크아웃 실패", 0)
+                    logger.error(f"[SVN] checkout failed on host: {project_slug}: {host_message}")
+                    return
+                if host_status == "running":
+                    _set_status(project_slug, "running", host_message or "호스트에서 VPN+SVN 실행 중...", 50)
             except httpx.RequestError:
                 pass
 

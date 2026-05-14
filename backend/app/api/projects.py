@@ -19,6 +19,7 @@ from app.services.projects import (
     update_project,
 )
 from app.services.retrieval import delete_project_source_chunks
+from app.services.source_index_state import SourceIndexStateRepository
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
@@ -55,6 +56,9 @@ async def delete_project_api(project_id: str, _: UserInfo = Depends(require_admi
     project = get_project(project_id)
     delete_project(project_id)
     await delete_project_source_chunks(project.slug, collection_name=project.rag_config.collection_name)
+    state_repo = SourceIndexStateRepository()
+    state_repo.delete_file_records(project.slug)
+    state_repo.delete_project_state(project.slug)
 
 
 @router.get("/{project_id}/export")

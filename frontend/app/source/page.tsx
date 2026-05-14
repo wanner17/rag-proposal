@@ -254,7 +254,7 @@ function SourcePage() {
             disabled={indexRunning}
             className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:cursor-not-allowed disabled:bg-blue-400 transition-colors"
           >
-            {indexRunning ? "⏳ 분석 중..." : "🔄 변경분만 업데이트"}
+            {indexRunning ? "⏳ 분석 중..." : "🔄 최신화"}
           </button>
         </div>
       </section>

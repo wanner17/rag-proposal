@@ -195,6 +195,14 @@ class SourceIndexStateRepository:
             )
             conn.commit()
 
+    def delete_project_state(self, project_slug: str) -> None:
+        with self._connect() as conn:
+            conn.execute(
+                "DELETE FROM source_index_projects WHERE project_slug = ?",
+                (project_slug,),
+            )
+            conn.commit()
+
     def recent_failures(self, project_slug: str, limit: int = 10) -> list[SourceFileRecord]:
         with self._connect() as conn:
             rows = conn.execute(

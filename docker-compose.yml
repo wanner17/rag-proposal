@@ -20,30 +20,22 @@ services:
       context: .
       dockerfile: backend/Dockerfile
     restart: unless-stopped
+    network_mode: host   # 호스트 네트워크 공유 → VPN 터널 직접 사용, Qdrant는 localhost:6333
     env_file: .env
     environment:
-      # llama.cpp(OpenAI 호환 LLM)/Embedding/Reranker는 호스트에서 실행 → host.docker.internal로 접근
-      LLM_HOST: http://host.docker.internal:8080/v1
-      EMBEDDING_HOST: http://host.docker.internal:8001
-      RERANKER_HOST: http://host.docker.internal:8002
-      QDRANT_HOST: http://qdrant:6333
-    extra_hosts:
-      - "host.docker.internal:host-gateway"   # Linux에서 호스트 접근용
+      # 호스트 네트워크 모드에서는 모두 localhost
+      LLM_HOST: http://localhost:8080/v1
+      EMBEDDING_HOST: http://localhost:8001
+      RERANKER_HOST: http://localhost:8002
+      QDRANT_HOST: http://localhost:6333
+      PORT: "8088"
     depends_on:
       qdrant:
         condition: service_healthy
-    ports:
-      - "8088:8000"   # MuseTalk이 8000 점유 중이라 8088 사용
-    cap_add:
-      - NET_ADMIN
     volumes:
-      - ./volumes/backend_data:/app/data       # 프로젝트/소스 인덱스 SQLite 상태
-      - ./volumes/documents:/app/documents     # 문서 업로드 저장소
-      - ${RAG_SOURCE_BASE_PATH:-/opt/rag-projects}:/opt/rag-projects  # SVN checkout 대상 (쓰기 필요)
-      - /etc/ipsec.conf:/etc/ipsec.conf:ro
-      - /etc/ipsec.d:/etc/ipsec.d:ro
-      - /etc/xl2tpd:/etc/xl2tpd:ro
-      - /var/run/xl2tpd:/var/run/xl2tpd
+      - ./volumes/backend_data:/app/data
+      - ./volumes/documents:/app/documents
+      - ${RAG_SOURCE_BASE_PATH:-/opt/rag-projects}:/opt/rag-projects
 
   nginx:
     image: nginx:alpine    # arm64 지원

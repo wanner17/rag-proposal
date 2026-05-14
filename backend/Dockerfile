@@ -1,12 +1,9 @@
 FROM python:3.11-slim
 
-# LibreOffice (HWP → PDF 변환용) + SVN + VPN (strongSwan + xl2tpd)
+# LibreOffice (HWP → PDF 변환용) + SVN
 RUN apt-get update && apt-get install -y \
     libreoffice \
     subversion \
-    strongswan \
-    xl2tpd \
-    iproute2 \
     --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
@@ -18,4 +15,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY backend/app/ ./app/
 COPY plugins/ ./plugins/
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

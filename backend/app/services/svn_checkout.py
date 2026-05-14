@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 
+import httpx
+
+from app.core.config import settings
 from app.models.project_schemas import ProjectSourceConfig
 
 logger = logging.getLogger(__name__)
@@ -27,64 +29,61 @@ def _set_status(project_slug: str, status: str, message: str, progress: int = 0)
     }
 
 
-async def _run(cmd: list[str], check: bool = True) -> str:
-    proc = await asyncio.create_subprocess_exec(
-        *cmd,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.STDOUT,
-    )
-    stdout, _ = await proc.communicate()
-    output = stdout.decode(errors="replace")
-    if check and proc.returncode != 0:
-        raise RuntimeError(f"Command {cmd[0]} failed (exit {proc.returncode}): {output}")
-    return output
-
-
 async def run_checkout(project_slug: str, config: ProjectSourceConfig) -> None:
-    """SVN 체크아웃 또는 업데이트 실행 (백그라운드 태스크용).
-    VPN은 호스트에서 미리 연결되어 있어야 함 (network_mode: host로 터널 공유).
-    """
+    """호스트의 checkout-server.py 웹훅을 호출해 VPN+SVN 체크아웃을 트리거한다."""
     if _checkout_state.get(project_slug, {}).get("status") == "running":
         raise RuntimeError("이미 체크아웃이 진행 중입니다.")
 
-    _set_status(project_slug, "running", "시작 중...", 5)
+    _set_status(project_slug, "running", "호스트에 체크아웃 요청 중...", 10)
+
+    webhook_url = f"{settings.SVN_CHECKOUT_WEBHOOK_URL.rstrip('/')}/checkout/{project_slug}"
+    payload = {
+        "svn_url": config.svn_url,
+        "repo_root": config.repo_root,
+    }
 
     try:
-        await _do_svn(project_slug, config)
-        _set_status(project_slug, "done", "완료", 100)
-        logger.info(f"[SVN] checkout done: {project_slug}")
-    except Exception:
-        msg_parts = []
-        import traceback
-        msg_parts = traceback.format_exc()
-        _set_status(project_slug, "error", str(msg_parts)[:300], 0)
-        logger.exception(f"[SVN] checkout failed: {project_slug}")
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.post(webhook_url, json=payload)
+
+        if resp.status_code == 409:
+            _set_status(project_slug, "running", "호스트에서 이미 실행 중", 20)
+            logger.info(f"[SVN] host already running checkout for {project_slug}")
+            asyncio.create_task(_poll_status(project_slug))
+            return
+
+        if resp.status_code != 200:
+            raise RuntimeError(f"Webhook returned {resp.status_code}: {resp.text}")
+
+        _set_status(project_slug, "running", "호스트에서 VPN+SVN 실행 중...", 20)
+        logger.info(f"[SVN] checkout triggered for {project_slug}")
+        asyncio.create_task(_poll_status(project_slug))
+
+    except httpx.RequestError as exc:
+        msg = f"호스트 checkout-server 연결 실패: {exc}"
+        _set_status(project_slug, "error", msg, 0)
+        logger.error(f"[SVN] {msg}")
 
 
-async def _do_svn(project_slug: str, config: ProjectSourceConfig) -> None:
-    repo_root = config.repo_root
-    is_update = os.path.isdir(os.path.join(repo_root, ".svn"))
+async def _poll_status(project_slug: str) -> None:
+    """호스트 서버를 폴링해 완료 여부를 감지한다."""
+    status_url = f"{settings.SVN_CHECKOUT_WEBHOOK_URL.rstrip('/')}/status/{project_slug}"
+    max_wait = 3600
+    interval = 5
+    elapsed = 0
 
-    if is_update:
-        _set_status(project_slug, "running", "저장소 업데이트 중...", 20)
-        cmd = ["svn", "update", repo_root,
-               "--username", "wanner17",
-               "--password", "wanner17",
-               "--no-auth-cache",
-               "--non-interactive"]
-    else:
-        _set_status(project_slug, "running", "저장소 내려받는 중...", 20)
-        cmd = [
-            "svn", "checkout", config.svn_url, repo_root,
-            "--username", "wanner17",
-            "--password", "wanner17",
-            "--no-auth-cache",
-            "--non-interactive",
-        ]
+    async with httpx.AsyncClient(timeout=5) as client:
+        while elapsed < max_wait:
+            await asyncio.sleep(interval)
+            elapsed += interval
+            try:
+                resp = await client.get(status_url)
+                if resp.status_code == 200 and resp.json().get("status") == "idle":
+                    _set_status(project_slug, "done", "완료", 100)
+                    logger.info(f"[SVN] checkout done: {project_slug}")
+                    return
+            except httpx.RequestError:
+                pass
 
-    logger.info(f"[SVN] {'update' if is_update else 'checkout'}: {repo_root}")
-    _set_status(project_slug, "running", "SVN 명령 실행 중...", 50)
-
-    output = await _run(cmd)
-    logger.info(f"[SVN] output: {output[:500]}")
-    _set_status(project_slug, "running", "완료 처리 중...", 90)
+    _set_status(project_slug, "error", "타임아웃: 호스트 응답 없음", 0)
+    logger.error(f"[SVN] polling timeout for {project_slug}")

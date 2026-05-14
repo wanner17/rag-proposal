@@ -20,30 +20,31 @@ services:
       context: .
       dockerfile: backend/Dockerfile
     restart: unless-stopped
-    network_mode: host   # 호스트 네트워크 공유 → VPN 터널 직접 사용, Qdrant는 localhost:6333
     env_file: .env
     environment:
-      # 호스트 네트워크 모드에서는 모두 localhost
-      LLM_HOST: http://localhost:8080/v1
-      EMBEDDING_HOST: http://localhost:8001
-      RERANKER_HOST: http://localhost:8002
-      QDRANT_HOST: http://localhost:6333
-      PORT: "8088"
+      LLM_HOST: http://host.docker.internal:8080/v1
+      EMBEDDING_HOST: http://host.docker.internal:8001
+      RERANKER_HOST: http://host.docker.internal:8002
+      QDRANT_HOST: http://qdrant:6333
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       qdrant:
         condition: service_healthy
+    ports:
+      - "8088:8000"
     volumes:
       - ./volumes/backend_data:/app/data
       - ./volumes/documents:/app/documents
       - ${RAG_SOURCE_BASE_PATH:-/opt/rag-projects}:/opt/rag-projects
 
   nginx:
-    image: nginx:alpine    # arm64 지원
+    image: nginx:alpine
     restart: unless-stopped
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
     extra_hosts:
-      - "host.docker.internal:host-gateway"   # nginx 컨테이너에서 호스트 PM2 frontend 접근
+      - "host.docker.internal:host-gateway"
     ports:
       - "${NGINX_HTTP_PORT:-80}:80"
     depends_on:

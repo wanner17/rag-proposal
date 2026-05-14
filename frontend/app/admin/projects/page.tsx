@@ -64,12 +64,12 @@ export default function ProjectAdminPage() {
     void refresh(authToken);
   }, [router]);
 
-  async function refresh(authToken = token) {
+  async function refresh(authToken = token, forceId?: string) {
     setLoading(true);
     try {
       const items = await listProjects(authToken);
       setProjects(items);
-      const nextSelected = selectedId || items[0]?.id || "";
+      const nextSelected = forceId || selectedId || items[0]?.id || "";
       setSelectedId(nextSelected);
       const project = items.find((item) => item.id === nextSelected);
       if (project) setForm(toForm(project));
@@ -108,11 +108,14 @@ export default function ProjectAdminPage() {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const sourceConfig = form.source_config ?? EMPTY_FORM.source_config!;
+    const repoName = extractRepoName(sourceConfig.svn_url ?? "");
     const payload = {
       ...form,
       source_config: {
         ...sourceConfig,
-        repo_root: form.slug
+        repo_root: repoName
+          ? `/opt/rag-projects/${repoName}`
+          : form.slug
           ? `/opt/rag-projects/${form.slug}`
           : "",
       },
@@ -133,12 +136,13 @@ export default function ProjectAdminPage() {
           token
         );
         setStatus(`"${updated.name}" 프로젝트를 수정했습니다.`);
+        await refresh(token);
       } else {
         const created = await createProject(payload, token);
         setSelectedId(created.id);
         setStatus(`"${created.name}" 프로젝트를 만들었습니다.`);
+        await refresh(token, created.id);
       }
-      await refresh();
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "저장에 실패했습니다.");
     }
@@ -388,16 +392,22 @@ export default function ProjectAdminPage() {
                           />
                         </div>
                         <div className="sm:col-span-3">
-                          <Field
-                            label="파일 저장 경로 (서버 절대경로)"
-                            value={
-                              form.slug
-                                ? `/opt/rag-projects/${form.slug}`
-                                : ""
-                            }
-                            disabled
-                            onChange={() => {}}
-                          />
+                          {(() => {
+                            const repoName = extractRepoName(sc.svn_url ?? "");
+                            const displayPath = repoName
+                              ? `/opt/rag-projects/${repoName}`
+                              : form.slug
+                              ? `/opt/rag-projects/${form.slug}`
+                              : "";
+                            return (
+                              <Field
+                                label="파일 저장 경로 (서버 절대경로)"
+                                value={displayPath}
+                                disabled
+                                onChange={() => {}}
+                              />
+                            );
+                          })()}
                         </div>
                       </div>
                     )}
@@ -420,6 +430,12 @@ export default function ProjectAdminPage() {
       </div>
     </div>
   );
+}
+
+function extractRepoName(svnUrl: string): string {
+  const trunkIdx = svnUrl.indexOf("/trunk");
+  if (trunkIdx === -1) return "";
+  return svnUrl.substring(0, trunkIdx).split("/").pop() ?? "";
 }
 
 function toForm(project: Project): ProjectCreatePayload {

@@ -223,7 +223,8 @@ function ChatPage() {
             };
             return next;
           });
-        }
+        },
+        { project_id: submittedProjectId }
       );
     } catch (err) {
       if (!isActiveRun(runId)) return;
@@ -360,7 +361,8 @@ function ChatPage() {
           updateComparisonSide(runId, "stream", (side) => ({
             content: `${side.content}${notice}`,
           }));
-        }
+        },
+        { project_id: selectedProjectId || undefined }
       );
     } catch (err) {
       if (!isActiveRun(runId)) return;

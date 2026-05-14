@@ -177,6 +177,36 @@ def _call_source_index(project_slug: str, changed: list[str], deleted: list[str]
         logger.error(f"[RAG] source-index call failed: {exc}")
 
 
+def _get_svn_info(svn_url: str, repo_root: str) -> dict:
+    import re
+    result: dict = {"working_revision": None, "head_revision": None}
+    svn_args = ["--username", SVN_USERNAME, "--password", SVN_PASSWORD, "--no-auth-cache", "--non-interactive"]
+
+    if repo_root and os.path.isdir(os.path.join(repo_root, ".svn")):
+        try:
+            r = _run(["svn", "info", repo_root] + svn_args, check=False)
+            for line in (r.stdout + r.stderr).splitlines():
+                m = re.search(r"(?:Revision|리비전):\s*(\d+)", line)
+                if m:
+                    result["working_revision"] = m.group(1)
+                    break
+        except Exception:
+            pass
+
+    if svn_url:
+        try:
+            r = _run(["svn", "info", svn_url, "-r", "HEAD"] + svn_args, check=False)
+            for line in (r.stdout + r.stderr).splitlines():
+                m = re.search(r"(?:Revision|리비전):\s*(\d+)", line)
+                if m:
+                    result["head_revision"] = m.group(1)
+                    break
+        except Exception:
+            pass
+
+    return result
+
+
 def _run_checkout(project_slug: str, svn_url: str, repo_root: str) -> None:
     with _lock:
         if project_slug in _running:
@@ -237,6 +267,11 @@ class Handler(BaseHTTPRequestHandler):
                 daemon=True,
             ).start()
             self._respond(200, {"status": "started"})
+        elif len(parts) == 2 and parts[0] == "svn-info":
+            body = self._read_body()
+            svn_url = body.get("svn_url", "")
+            repo_root = body.get("repo_root", "")
+            self._respond(200, _get_svn_info(svn_url, repo_root))
         else:
             self._respond(404, {"error": "not found"})
 

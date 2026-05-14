@@ -32,7 +32,8 @@ export async function chatStream(
   onSource: (sources: Source[]) => void,
   onToken: (token: string) => void,
   onDone: () => void,
-  onRetry?: (notice: string) => void
+  onRetry?: (notice: string) => void,
+  options?: { project_id?: string }
 ) {
   const res = await fetch(`${API_BASE}/chat/stream`, {
     method: "POST",
@@ -40,7 +41,7 @@ export async function chatStream(
       "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify({ query }),
+    body: JSON.stringify({ query, ...options }),
   });
 
   if (res.status === 401) throw new UnauthorizedError();
@@ -200,8 +201,11 @@ export async function searchDocuments(request: DocumentSearchRequest, token: str
   return res.json() as Promise<DocumentSearchResponse>;
 }
 
-export async function deleteDocument(file: string, token: string) {
-  const res = await fetch(`${API_BASE}/documents/${encodeURIComponent(file)}`, {
+export async function deleteDocument(file: string, token: string, projectId?: string) {
+  const url = projectId
+    ? `${API_BASE}/documents/${encodeURIComponent(file)}?project_id=${encodeURIComponent(projectId)}`
+    : `${API_BASE}/documents/${encodeURIComponent(file)}`;
+  const res = await fetch(url, {
     method: "DELETE",
     headers: { Authorization: `Bearer ${token}` },
   });

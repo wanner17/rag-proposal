@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import asdict
 from datetime import datetime, timezone
 
+import httpx
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 
@@ -206,10 +207,36 @@ async def source_index_status(
     )
 
 
+class SvnInfoResponse(BaseModel):
+    working_revision: str | None = None
+    head_revision: str | None = None
+
+
 class CheckoutStatusResponse(BaseModel):
     status: str
     message: str
     progress: int
+
+
+@router.get("/projects/{project_id}/source-index/svn-info", response_model=SvnInfoResponse)
+async def get_svn_info(
+    project_id: str,
+    _: UserInfo = Depends(_require_source_index_access),
+):
+    project = get_project(project_id)
+    config = project.source_config
+    if not config or not config.svn_url:
+        return SvnInfoResponse()
+    webhook_url = f"{settings.SVN_CHECKOUT_WEBHOOK_URL.rstrip('/')}/svn-info/{project.slug}"
+    payload = {"svn_url": config.svn_url, "repo_root": config.repo_root or ""}
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.post(webhook_url, json=payload)
+        if resp.status_code == 200:
+            return SvnInfoResponse(**resp.json())
+    except Exception:
+        pass
+    return SvnInfoResponse()
 
 
 @router.post("/projects/{project_id}/source-index/checkout", response_model=CheckoutStatusResponse)

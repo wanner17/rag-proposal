@@ -171,6 +171,19 @@ export async function triggerReindex(projectId: string, token: string) {
   return res.json();
 }
 
+export interface SvnInfo {
+  working_revision: string | null;
+  head_revision: string | null;
+}
+
+export async function getSvnInfo(projectId: string, token: string): Promise<SvnInfo> {
+  const res = await fetch(`${API_BASE}/projects/${projectId}/source-index/svn-info`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) return { working_revision: null, head_revision: null };
+  return res.json() as Promise<SvnInfo>;
+}
+
 export async function triggerIncrementalIndex(projectId: string, token: string) {
   const res = await fetch(`${API_BASE}/projects/${projectId}/source-index`, {
     method: "POST",

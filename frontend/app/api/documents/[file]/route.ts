@@ -8,7 +8,11 @@ export async function DELETE(
 ) {
   const auth = req.headers.get("authorization") ?? "";
   const { file } = await params;
-  const res = await fetch(`${BACKEND}/api/documents/${encodeURIComponent(file)}`, {
+  const projectId = req.nextUrl.searchParams.get("project_id");
+  const backendUrl = projectId
+    ? `${BACKEND}/api/documents/${encodeURIComponent(file)}?project_id=${encodeURIComponent(projectId)}`
+    : `${BACKEND}/api/documents/${encodeURIComponent(file)}`;
+  const res = await fetch(backendUrl, {
     method: "DELETE",
     headers: { authorization: auth },
   });

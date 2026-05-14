@@ -84,7 +84,7 @@ function DocumentsPage() {
     setNotice("");
     try {
       const token = localStorage.getItem("token") ?? "";
-      const response = await deleteDocument(file, token);
+      const response = await deleteDocument(file, token, projectId);
       setNotice(response.message);
       await refreshDocuments();
       setQuery("");

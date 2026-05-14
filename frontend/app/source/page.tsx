@@ -8,9 +8,11 @@ import {
   getCheckoutStatus,
   triggerIncrementalIndex,
   getSourceIndexStatus,
+  getSvnInfo,
   type Project,
   type CheckoutStatus,
   type SourceIndexStatus,
+  type SvnInfo,
 } from "@/lib/projects";
 
 type IndexingPhase = "idle" | "running" | "done" | "error";
@@ -27,6 +29,7 @@ function SourcePage() {
     status: "idle", message: "", progress: 0,
   });
   const [indexStatus, setIndexStatus] = useState<SourceIndexStatus | null>(null);
+  const [svnInfo, setSvnInfo] = useState<SvnInfo | null>(null);
   const [indexingPhase, setIndexingPhase] = useState<IndexingPhase>("idle");
   const [actionError, setActionError] = useState("");
 
@@ -53,6 +56,10 @@ function SourcePage() {
         // 초기 체크아웃 상태 조회
         getCheckoutStatus(found.id, t)
           .then(setCheckoutState)
+          .catch(() => {});
+        // SVN HEAD 리비전 조회
+        getSvnInfo(found.id, t)
+          .then(setSvnInfo)
           .catch(() => {});
       })
       .catch(() => router.push("/login"));
@@ -204,17 +211,28 @@ function SourcePage() {
         </p>
 
         {indexStatus && (
-          <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3 bg-gray-50 p-4 rounded-lg border border-gray-100 text-sm">
+          <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4 bg-gray-50 p-4 rounded-lg border border-gray-100 text-sm">
             <div>
               <p className="text-gray-500 mb-1 text-xs">색인된 파일</p>
               <p className="font-semibold text-gray-900">{indexStatus.counts?.indexed ?? 0}개</p>
             </div>
-            {indexStatus.last_successful_revision && (
-              <div>
-                <p className="text-gray-500 mb-1 text-xs">마지막 리비전</p>
-                <p className="font-semibold text-gray-900 font-mono">r{indexStatus.last_successful_revision}</p>
-              </div>
-            )}
+            <div>
+              <p className="text-gray-500 mb-1 text-xs">색인 리비전</p>
+              <p className="font-semibold text-gray-900 font-mono">
+                {indexStatus.last_successful_revision ? `r${indexStatus.last_successful_revision}` : "—"}
+              </p>
+            </div>
+            <div>
+              <p className="text-gray-500 mb-1 text-xs">SVN HEAD</p>
+              <p className={`font-semibold font-mono ${
+                svnInfo?.head_revision && indexStatus.last_successful_revision &&
+                Number(svnInfo.head_revision) > Number(indexStatus.last_successful_revision)
+                  ? "text-amber-600"
+                  : "text-gray-900"
+              }`}>
+                {svnInfo?.head_revision ? `r${svnInfo.head_revision}` : "—"}
+              </p>
+            </div>
             {indexStatus.last_full_indexed_at && (
               <div>
                 <p className="text-gray-500 mb-1 text-xs">전체 분석 일시</p>

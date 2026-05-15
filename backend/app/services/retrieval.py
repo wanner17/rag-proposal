@@ -191,6 +191,50 @@ async def fetch_project_summary_chunks(
     return [_point_to_chunk(p) for p in points]
 
 
+_STRUCTURE_PATH_KEYWORDS = ("controller", "service", "mapper", "dao", "repository")
+
+
+async def fetch_structure_chunks(
+    project_slug: str,
+    collection_name: str | None = None,
+    max_config: int = 4,
+    max_classes: int = 6,
+) -> list[dict]:
+    """Fetch config_file + key java_class chunks for PROJECT_OVERVIEW context assembly."""
+    client = get_client()
+    coll = collection_name or settings.QDRANT_COLLECTION
+    base_must = [FieldCondition(key="project_slug", match=MatchValue(value=project_slug))]
+
+    config_points, _ = await client.scroll(
+        collection_name=coll,
+        scroll_filter=Filter(must=base_must + [
+            FieldCondition(key="chunk_type", match=MatchValue(value="config_file")),
+        ]),
+        limit=max_config,
+        with_payload=True,
+        with_vectors=False,
+    )
+
+    class_points, _ = await client.scroll(
+        collection_name=coll,
+        scroll_filter=Filter(must=base_must + [
+            FieldCondition(key="chunk_type", match=MatchValue(value="java_class")),
+        ]),
+        limit=40,
+        with_payload=True,
+        with_vectors=False,
+    )
+
+    config_chunks = [_point_to_chunk(p) for p in config_points]
+    all_classes = [_point_to_chunk(p) for p in class_points]
+    key_classes = [
+        c for c in all_classes
+        if any(kw in (c.get("relative_path") or "").lower() for kw in _STRUCTURE_PATH_KEYWORDS)
+    ][:max_classes]
+
+    return config_chunks + key_classes
+
+
 async def hybrid_search(
     query: str,
     department: str | None,
@@ -198,6 +242,7 @@ async def hybrid_search(
     collection_name: str | None = None,
     retrieval_scope: RetrievalScope = "documents",
     project_slug: str | None = None,
+    priority_chunk_types: list[str] | None = None,
 ) -> list[dict]:
     client = get_client()
     target_collection = collection_name or settings.QDRANT_COLLECTION
@@ -206,12 +251,28 @@ async def hybrid_search(
 
     query_filter = _retrieval_filter(department, retrieval_scope, project_slug)
 
+    prefetches = [
+        Prefetch(query=dense_vec, using="dense", limit=top_k),
+        Prefetch(query=sparse_vec, using="bm25", limit=top_k),
+    ]
+    if priority_chunk_types:
+        # Extra dense prefetch restricted to priority chunk types.
+        # RRF fusion will boost chunks appearing in multiple prefetches.
+        ct_should = [
+            FieldCondition(key="chunk_type", match=MatchValue(value=ct))
+            for ct in priority_chunk_types
+        ]
+        if query_filter and query_filter.must:
+            boost_filter = Filter(must=list(query_filter.must), should=ct_should)
+        else:
+            boost_filter = Filter(should=ct_should)
+        prefetches.append(
+            Prefetch(query=dense_vec, using="dense", limit=max(top_k // 2, 10), filter=boost_filter)
+        )
+
     results = await client.query_points(
         collection_name=target_collection,
-        prefetch=[
-            Prefetch(query=dense_vec, using="dense", limit=top_k),
-            Prefetch(query=sparse_vec, using="bm25", limit=top_k),
-        ],
+        prefetch=prefetches,
         query=FusionQuery(fusion=Fusion.RRF),
         query_filter=query_filter,
         limit=top_k,
@@ -317,6 +378,7 @@ async def retrieve_with_metadata(
     retrieval_scope: RetrievalScope = "documents",
     project_slug: str | None = None,
     score_threshold: float | None = None,
+    priority_chunk_types: list[str] | None = None,
 ) -> tuple[list[dict], list[dict]]:
     if retrieval_scope == "documents" and project_slug is None:
         candidates = await hybrid_search(
@@ -324,6 +386,7 @@ async def retrieve_with_metadata(
             department,
             top_k=top_k,
             collection_name=collection_name,
+            priority_chunk_types=priority_chunk_types,
         )
     else:
         candidates = await hybrid_search(
@@ -333,6 +396,7 @@ async def retrieve_with_metadata(
             collection_name=collection_name,
             retrieval_scope=retrieval_scope,
             project_slug=project_slug,
+            priority_chunk_types=priority_chunk_types,
         )
     if not candidates:
         return [], []
@@ -350,6 +414,7 @@ async def retrieve_with_critic(
     retrieval_scope: RetrievalScope = "documents",
     project_slug: str | None = None,
     score_threshold: float | None = None,
+    priority_chunk_types: list[str] | None = None,
 ) -> CriticResult:
     if retrieval_scope == "documents" and project_slug is None:
         initial_candidates, initial_reranked = await retrieve_with_metadata(
@@ -359,6 +424,7 @@ async def retrieve_with_critic(
             top_n=top_n,
             collection_name=collection_name,
             score_threshold=score_threshold,
+            priority_chunk_types=priority_chunk_types,
         )
     else:
         initial_candidates, initial_reranked = await retrieve_with_metadata(
@@ -370,6 +436,7 @@ async def retrieve_with_critic(
             retrieval_scope=retrieval_scope,
             project_slug=project_slug,
             score_threshold=score_threshold,
+            priority_chunk_types=priority_chunk_types,
         )
     initial_decision = assess_retrieval(
         query,
@@ -396,6 +463,7 @@ async def retrieve_with_critic(
             top_n=retry_plan.top_n,
             collection_name=collection_name,
             score_threshold=score_threshold,
+            priority_chunk_types=priority_chunk_types,
         )
     else:
         retry_candidates, retry_reranked = await retrieve_with_metadata(
@@ -407,6 +475,7 @@ async def retrieve_with_critic(
             retrieval_scope=retrieval_scope,
             project_slug=project_slug,
             score_threshold=score_threshold,
+            priority_chunk_types=priority_chunk_types,
         )
     retry_decision = assess_retrieval(
         query,

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from enum import Enum
 
 
@@ -13,11 +14,21 @@ class QuestionType(str, Enum):
     GENERAL          = "general"
 
 
+@dataclass(frozen=True)
+class ClassificationResult:
+    question_type: QuestionType
+    confidence: float  # top-score / total-score across all matched types
+
+
 _KEYWORD_RULES: dict[QuestionType, list[str]] = {
     QuestionType.PROJECT_OVERVIEW: [
         "전체", "개요", "아키텍처", "구조", "overview", "architecture",
         "어떤 시스템", "어떤 프로젝트", "주요 기능", "소개", "설명해줘",
         "무슨 시스템", "무슨 프로젝트", "어떤 역할",
+        # site / service / app variants — previously missing
+        "무슨 사이트", "어떤 사이트", "이 사이트", "사이트야", "사이트인",
+        "어떤 서비스", "무슨 서비스", "서비스 소개", "사이트 소개",
+        "무슨 앱", "어떤 앱", "이 시스템", "이 프로젝트",
     ],
     QuestionType.DB_SQL_TRACING: [
         "쿼리", "sql", "테이블", "컬럼", "조회", "insert", "update",
@@ -44,7 +55,14 @@ _KEYWORD_RULES: dict[QuestionType, list[str]] = {
 
 
 def classify_question(query: str) -> QuestionType:
-    """Keyword-based classification. Returns GENERAL when ambiguous."""
+    return _classify(query).question_type
+
+
+def classify_question_with_confidence(query: str) -> ClassificationResult:
+    return _classify(query)
+
+
+def _classify(query: str) -> ClassificationResult:
     q = " " + query.lower() + " "
     scores: dict[QuestionType, int] = {}
     for q_type, keywords in _KEYWORD_RULES.items():
@@ -53,13 +71,14 @@ def classify_question(query: str) -> QuestionType:
             scores[q_type] = score
 
     if not scores:
-        return QuestionType.GENERAL
+        return ClassificationResult(QuestionType.GENERAL, 0.0)
 
+    total = sum(scores.values())
     sorted_scores = sorted(scores.values(), reverse=True)
     best_type = max(scores, key=lambda t: scores[t])
+    confidence = round(sorted_scores[0] / total, 4)
 
-    # Require a clear winner: top score ≥ 1.5× runner-up (or sole match)
     if len(sorted_scores) == 1 or sorted_scores[0] >= sorted_scores[1] * 1.5:
-        return best_type
+        return ClassificationResult(best_type, confidence)
 
-    return QuestionType.GENERAL
+    return ClassificationResult(QuestionType.GENERAL, 0.0)

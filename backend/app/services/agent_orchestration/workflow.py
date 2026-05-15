@@ -12,7 +12,7 @@ from fastapi import HTTPException, status
 from app.models.schemas import DocumentSource, Source, SourceCodeSource
 from app.services.agent_orchestration.answer_quality import review_answer_quality
 from app.services.agent_orchestration.contamination_detector import detect_contamination
-from app.services.agent_orchestration.question_classifier import QuestionType, classify_question
+from app.services.agent_orchestration.question_classifier import QuestionType, classify_question, classify_question_with_confidence
 from app.services.agent_orchestration.retrieval_planner import RetrievalPlan, build_retrieval_plan
 from app.services.agent_orchestration.types import (
     AnswerQualityReport,
@@ -21,7 +21,7 @@ from app.services.agent_orchestration.types import (
     AgentWorkflowTraceStep,
 )
 from app.services.llm import generate, generate_tokens, get_retrieval_config
-from app.services.retrieval import ensure_collection, fetch_project_summary_chunks, retrieve_with_critic
+from app.services.retrieval import ensure_collection, fetch_project_summary_chunks, fetch_structure_chunks, retrieve_with_critic
 from app.services.retrieval_critic import CriticResult
 
 logger = logging.getLogger(__name__)
@@ -231,10 +231,18 @@ def _build_graph():
 
 async def _classify_question(state: _AgentGraphState) -> dict[str, Any]:
     started = perf_counter()
-    q_type = classify_question(state["query"])
-    step = _step("classify_question", started, question_type=q_type.value)
-    logger.info("agent graph classified run=%s type=%s", state["graph_run_id"], q_type.value)
-    return {"question_type": q_type.value, "steps": state["steps"] + [step]}
+    result = classify_question_with_confidence(state["query"])
+    step = _step(
+        "classify_question",
+        started,
+        question_type=result.question_type.value,
+        confidence=result.confidence,
+    )
+    logger.info(
+        "agent graph classified run=%s type=%s confidence=%.2f",
+        state["graph_run_id"], result.question_type.value, result.confidence,
+    )
+    return {"question_type": result.question_type.value, "steps": state["steps"] + [step]}
 
 
 async def _plan_retrieval(state: _AgentGraphState) -> dict[str, Any]:
@@ -296,11 +304,24 @@ async def _replan_retrieval(state: _AgentGraphState) -> dict[str, Any]:
     top_k = state["top_k"]
     top_n = state["top_n"]
     threshold = state.get("score_threshold") or 0.4
+    plan: RetrievalPlan | None = state.get("retrieval_plan")
+
+    if "frontend_contamination" in reasons and plan:
+        extra = [
+            "**/js/**", "**/css/**", "**/fonts/**", "**/img/**",
+            "**/images/**", "**/resources/js/**", "**/resources/css/**",
+            "**/static/**", "**/*.min.js", "**/*.min.css",
+        ]
+        plan._extra_exclude_paths.extend(
+            p for p in extra if p not in plan._extra_exclude_paths
+        )
 
     if "insufficient_evidence" in reasons:
         top_k = min(top_k * 2, 60)
         top_n = min(top_n + 2, 12)
         threshold = max(threshold - 0.05, 0.2)
+        if plan and not plan.boost_project_summary:
+            plan.boost_project_summary = True
 
     step = _step(
         "replan_retrieval",
@@ -309,6 +330,14 @@ async def _replan_retrieval(state: _AgentGraphState) -> dict[str, Any]:
         new_top_k=top_k,
         new_top_n=top_n,
         retry_count=retry_count + 1,
+        extra_exclude_paths=plan._extra_exclude_paths if plan else [],
+        boost_project_summary_forced=plan.boost_project_summary if plan else False,
+    )
+    logger.info(
+        "agent graph replan run=%s reasons=%s new_top_k=%s boost_summary=%s extra_excludes=%s",
+        state["graph_run_id"], reasons, top_k,
+        plan.boost_project_summary if plan else False,
+        plan._extra_exclude_paths if plan else [],
     )
     return {
         "top_k": top_k,
@@ -369,6 +398,7 @@ def _is_excluded_path(path: str, exclude_patterns: list[str]) -> bool:
 async def _retrieve_evidence(state: _AgentGraphState) -> dict[str, Any]:
     started = perf_counter()
     plan: RetrievalPlan | None = state.get("retrieval_plan")
+    priority_chunk_types = plan.priority_chunk_types if plan else None
 
     critic_result = await retrieve_with_critic(
         state["query"],
@@ -379,6 +409,7 @@ async def _retrieve_evidence(state: _AgentGraphState) -> dict[str, Any]:
         retrieval_scope=state["retrieval_scope"],
         project_slug=state["project_slug"],
         score_threshold=state.get("score_threshold"),
+        priority_chunk_types=priority_chunk_types,
     )
     chunks = critic_result.selected.reranked
 
@@ -388,6 +419,11 @@ async def _retrieve_evidence(state: _AgentGraphState) -> dict[str, Any]:
             if not _is_excluded_path(c.get("relative_path") or c.get("file") or "", plan.effective_exclude_paths)
         ]
 
+    is_overview = state.get("question_type") == QuestionType.PROJECT_OVERVIEW.value
+    prepend_chunks: list[dict] = []
+    summary_prepended = 0
+    structure_prepended = 0
+
     if plan and plan.boost_project_summary and state.get("project_slug"):
         summary_chunks = await fetch_project_summary_chunks(
             state["project_slug"],
@@ -396,7 +432,28 @@ async def _retrieve_evidence(state: _AgentGraphState) -> dict[str, Any]:
         if summary_chunks:
             existing_ids = {c.get("point_id") for c in chunks}
             new_summaries = [c for c in summary_chunks if c.get("point_id") not in existing_ids]
-            chunks = new_summaries + chunks
+            summary_prepended = len(new_summaries)
+            prepend_chunks.extend(new_summaries)
+
+    if is_overview and state.get("project_slug"):
+        struct_chunks = await fetch_structure_chunks(
+            state["project_slug"],
+            collection_name=state["collection_name"],
+        )
+        if struct_chunks:
+            existing_ids = {c.get("point_id") for c in chunks} | {c.get("point_id") for c in prepend_chunks}
+            new_struct = [c for c in struct_chunks if c.get("point_id") not in existing_ids]
+            structure_prepended = len(new_struct)
+            prepend_chunks.extend(new_struct)
+
+    if prepend_chunks:
+        chunks = prepend_chunks + chunks
+
+    chunk_type_dist: dict[str, int] = {}
+    for c in chunks:
+        ct = c.get("chunk_type", "unknown")
+        chunk_type_dist[ct] = chunk_type_dist.get(ct, 0) + 1
+
     decision = critic_result.selected.decision
     step = _step(
         "retrieve_evidence",
@@ -406,13 +463,32 @@ async def _retrieve_evidence(state: _AgentGraphState) -> dict[str, Any]:
         result_count=len(chunks),
         sufficiency_score=decision.sufficiency_score,
         trigger_reasons=decision.trigger_reasons,
+        question_type=state.get("question_type"),
+        plan_priority_chunk_types=plan.priority_chunk_types if plan else [],
+        plan_priority_paths=plan.priority_paths if plan else [],
+        plan_exclude_paths=plan.effective_exclude_paths if plan else [],
+        plan_boost_project_summary=plan.boost_project_summary if plan else False,
+        summary_chunks_prepended=summary_prepended,
+        structure_chunks_prepended=structure_prepended,
+        chunk_type_distribution=chunk_type_dist,
+        final_sources=[
+            {
+                "path": c.get("relative_path") or c.get("file"),
+                "chunk_type": c.get("chunk_type"),
+                "score": round(float(c.get("score") or 0), 4),
+            }
+            for c in chunks[:12]
+        ],
     )
     logger.info(
-        "agent graph retrieved run=%s selected_pass=%s retry=%s result_count=%s",
+        "agent graph retrieved run=%s q_type=%s selected_pass=%s result_count=%s chunk_types=%s summary=%s structure=%s",
         state["graph_run_id"],
+        state.get("question_type"),
         critic_result.selected.name,
-        critic_result.retry is not None,
         len(chunks),
+        chunk_type_dist,
+        summary_prepended,
+        structure_prepended,
     )
     return {
         "critic_result": critic_result,

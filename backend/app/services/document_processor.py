@@ -33,12 +33,17 @@ def _extract_docx_pages(path: str) -> list[dict]:
 def _hwp_to_pdf(hwp_path: str) -> str:
     output_dir = "/tmp/rag_converted"
     Path(output_dir).mkdir(parents=True, exist_ok=True)
+    before = set(Path(output_dir).glob("*.pdf"))
     subprocess.run(
         ["libreoffice", "--headless", "--convert-to", "pdf", "--outdir", output_dir, hwp_path],
         check=True,
         capture_output=True,
     )
-    return f"{output_dir}/{Path(hwp_path).stem}.pdf"
+    after = set(Path(output_dir).glob("*.pdf"))
+    new_files = after - before
+    if not new_files:
+        raise FileNotFoundError(f"LibreOffice conversion produced no PDF: {hwp_path}")
+    return str(next(iter(new_files)))
 
 
 def _extract_text_pages(path: str) -> list[dict]:

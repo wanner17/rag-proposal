@@ -6,20 +6,13 @@ import {
   AgentUnavailableError,
   RetrievalScope,
   UnauthorizedError,
-  type AgentWorkflowMetadata,
-  type Source,
 } from "@/lib/api";
 import { listProjects, type Project } from "@/lib/projects";
-import SourceCard from "@/components/SourceCard";
-import AgentThinkingPanel, { type AgentStep } from "@/components/AgentThinkingPanel";
 
 interface Message {
   role: "user" | "assistant";
   content: string;
-  sources?: Source[];
   streaming?: boolean;
-  agentMetadata?: AgentWorkflowMetadata;
-  agentSteps?: AgentStep[];
 }
 
 function parseContentBlocks(content: string): Array<{ type: "text" | "code"; content: string; lang?: string }> {
@@ -114,7 +107,7 @@ function ChatPage() {
 
     setMessages((prev) => [
       ...prev,
-      { role: "assistant", content: "", streaming: true, agentSteps: [] },
+      { role: "assistant", content: "", streaming: true },
     ]);
 
     const history = messages
@@ -126,14 +119,7 @@ function ChatPage() {
       await agentStream(
         query,
         token,
-        (sources) => {
-          if (!isActiveRun(runId)) return;
-          setMessages((prev) => {
-            const next = [...prev];
-            next[next.length - 1] = { ...next[next.length - 1], sources };
-            return next;
-          });
-        },
+        () => {},
         (tok) => {
           if (!isActiveRun(runId)) return;
           setMessages((prev) => {
@@ -145,23 +131,12 @@ function ChatPage() {
             return next;
           });
         },
-        (metadata) => {
-          if (!isActiveRun(runId)) return;
-          setMessages((prev) => {
-            const next = [...prev];
-            next[next.length - 1] = { ...next[next.length - 1], agentMetadata: metadata };
-            return next;
-          });
-        },
+        () => {},
         () => {
           if (!isActiveRun(runId)) return;
           setMessages((prev) => {
             const next = [...prev];
-            const msg = next[next.length - 1];
-            const steps = (msg.agentSteps ?? []).map((s) =>
-              s.status === "running" ? { ...s, status: "done" as const } : s
-            );
-            next[next.length - 1] = { ...msg, streaming: false, agentSteps: steps };
+            next[next.length - 1] = { ...next[next.length - 1], streaming: false };
             return next;
           });
           setLoading(false);
@@ -178,28 +153,6 @@ function ChatPage() {
           });
         },
         { project_id: submittedProjectId, retrieval_scope: submittedScope, conversation_history: history },
-        (name, index) => {
-          if (!isActiveRun(runId)) return;
-          setMessages((prev) => {
-            const next = [...prev];
-            const msg = next[next.length - 1];
-            const steps = [...(msg.agentSteps ?? [])];
-            steps[index] = { name, index, status: "running" };
-            next[next.length - 1] = { ...msg, agentSteps: steps };
-            return next;
-          });
-        },
-        (name, index, durationMs) => {
-          if (!isActiveRun(runId)) return;
-          setMessages((prev) => {
-            const next = [...prev];
-            const msg = next[next.length - 1];
-            const steps = [...(msg.agentSteps ?? [])];
-            steps[index] = { name, index, status: "done", durationMs };
-            next[next.length - 1] = { ...msg, agentSteps: steps };
-            return next;
-          });
-        }
       );
     } catch (err) {
       if (!isActiveRun(runId)) return;
@@ -263,83 +216,6 @@ function ChatPage() {
     router.push("/login");
   }
 
-  function sourceKey(source: Source) {
-    if (source.source_kind === "source_code") {
-      return (
-        source.point_id ??
-        `${source.project_slug}:${source.relative_path}:${source.start_line}:${source.end_line}`
-      );
-    }
-    return source.point_id ?? `${source.file}:${source.page}:${source.section}`;
-  }
-
-  function formatAgentMetadata(metadata: AgentWorkflowMetadata) {
-    const runId = metadata.graph_run_id.slice(0, 8);
-    const pass = metadata.selected_pass ?? "n/a";
-    const retry = metadata.retry_triggered ? "retry on" : "retry off";
-    const qa = metadata.answer_quality ? ` · QA ${metadata.answer_quality.status}` : "";
-    return `Agent · ${metadata.framework} · pass ${pass} · ${retry}${qa} · steps ${metadata.steps.length} · run ${runId}`;
-  }
-
-  function qualityStatusLabel(status: string) {
-    if (status === "passed") return "통과";
-    if (status === "issues_found") return "확인 필요";
-    return status;
-  }
-
-  function coverageStatusLabel(status: string) {
-    if (status === "covered") return "포함";
-    if (status === "missing") return "누락";
-    if (status === "unavailable") return "근거 없음";
-    return status;
-  }
-
-  function renderAnswerQualityReport(metadata?: AgentWorkflowMetadata) {
-    const report = metadata?.answer_quality;
-    if (!report) return null;
-
-    const issueCount = report.findings.length;
-    const coverageIssues = report.coverage.filter((item) => item.status !== "covered");
-    const claimSupport = report.evidence_sufficiency.claim_support;
-    const weakCount = claimSupport?.weak_count ?? 0;
-    const statusClass =
-      report.status === "passed"
-        ? "bg-emerald-50 text-emerald-700"
-        : "bg-amber-50 text-amber-700";
-
-    return (
-      <div className="mt-2 space-y-1 text-[11px] leading-5 text-gray-600">
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className={`rounded-full px-2 py-0.5 font-medium ${statusClass}`}>
-            QA {qualityStatusLabel(report.status)}
-          </span>
-          <span className="rounded-full bg-gray-100 px-2 py-0.5">
-            이슈 {issueCount}
-          </span>
-          <span className="rounded-full bg-gray-100 px-2 py-0.5">
-            근거 약함 {weakCount}
-          </span>
-          <span className="rounded-full bg-gray-100 px-2 py-0.5">
-            보정 {report.revision_triggered ? report.revision_count : 0}
-          </span>
-        </div>
-        {coverageIssues.length > 0 && (
-          <div className="text-gray-500">
-            Coverage:{" "}
-            {coverageIssues
-              .map((item) => `${item.item} ${coverageStatusLabel(item.status)}`)
-              .join(", ")}
-          </div>
-        )}
-        {report.findings.length > 0 && (
-          <div className="text-gray-500">
-            {report.findings.slice(0, 2).map((finding) => finding.message).join(" / ")}
-          </div>
-        )}
-      </div>
-    );
-  }
-
   const selectedProject = projects.find((project) => project.id === selectedProjectId) ?? null;
 
   return (
@@ -385,38 +261,18 @@ function ChatPage() {
                   {msg.content}
                 </div>
               ) : (
-                <>
-                  {msg.agentSteps && msg.agentSteps.length > 0 && (
-                    <AgentThinkingPanel steps={msg.agentSteps} isStreaming={!!msg.streaming} />
+                <div className="rounded-2xl px-4 py-3 bg-white border shadow-sm rounded-tl-sm">
+                  {parseContentBlocks(msg.content).map((block, j) =>
+                    block.type === "code" ? (
+                      <CodeBlock key={j} code={block.content} lang={block.lang} />
+                    ) : (
+                      <span key={j} className="whitespace-pre-wrap">{block.content}</span>
+                    )
                   )}
-                  <div className="rounded-2xl px-4 py-3 bg-white border shadow-sm rounded-tl-sm">
-                    {parseContentBlocks(msg.content).map((block, j) =>
-                      block.type === "code" ? (
-                        <CodeBlock key={j} code={block.content} lang={block.lang} />
-                      ) : (
-                        <span key={j} className="whitespace-pre-wrap">{block.content}</span>
-                      )
-                    )}
-                    {msg.streaming && (
-                      <span className="inline-block w-2 h-4 bg-gray-400 ml-1 animate-pulse rounded" />
-                    )}
-                  </div>
-                  {msg.agentMetadata && (
-                    <>
-                      <div className="mt-1 text-[11px] leading-5 text-gray-500">
-                        {formatAgentMetadata(msg.agentMetadata)}
-                      </div>
-                      {renderAnswerQualityReport(msg.agentMetadata)}
-                    </>
+                  {msg.streaming && (
+                    <span className="inline-block w-2 h-4 bg-gray-400 ml-1 animate-pulse rounded" />
                   )}
-                  {msg.sources && msg.sources.length > 0 && (
-                    <div className="mt-2 space-y-1">
-                      {msg.sources.map((src, j) => (
-                        <SourceCard key={`${sourceKey(src)}-${j}`} source={src} index={j} />
-                      ))}
-                    </div>
-                  )}
-                </>
+                </div>
               )}
             </div>
           </div>

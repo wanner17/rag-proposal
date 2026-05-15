@@ -52,7 +52,7 @@ async def chat_stream(req: ChatRequest, user: UserInfo = Depends(get_current_use
     project = get_project(req.project_id) if req.project_id else get_default_project()
 
     intent = _classify_intent(req.query)
-    retrieval_scope = "code_only" if intent == "technical" else "documents"
+    retrieval_scope = "code_only" if intent == "code_structure" else "documents"
 
     critic_result = await retrieve_with_critic(
         req.query,

@@ -27,10 +27,6 @@ def _summarize_documents(chunks: list[dict]) -> list[DocumentSummary]:
             {
                 "file": file_name,
                 "department": chunk.get("department"),
-                "year": chunk.get("year"),
-                "client": chunk.get("client"),
-                "domain": chunk.get("domain"),
-                "project_type": chunk.get("project_type"),
                 "pages": set(),
                 "sections": set(),
                 "chunk_count": 0,

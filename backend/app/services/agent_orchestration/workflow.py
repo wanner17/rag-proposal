@@ -16,7 +16,7 @@ from app.services.agent_orchestration.types import (
     AgentWorkflowResult,
     AgentWorkflowTraceStep,
 )
-from app.services.llm import generate, generate_tokens
+from app.services.llm import generate, generate_tokens, get_retrieval_config
 from app.services.retrieval import ensure_collection, retrieve_with_critic
 from app.services.retrieval_critic import CriticResult
 
@@ -36,6 +36,7 @@ class _AgentGraphState(TypedDict):
     project_id: str
     project_slug: str
     conversation_history: list[dict]
+    score_threshold: NotRequired[float | None]
     answer: NotRequired[str]
     found: NotRequired[bool]
     sources: NotRequired[list[Source]]
@@ -183,20 +184,28 @@ def _build_graph():
 async def _prepare_context(state: _AgentGraphState) -> dict[str, Any]:
     started = perf_counter()
     await ensure_collection(state["collection_name"])
+    retrieval_config = get_retrieval_config(state["query"])
     step = _step(
         "prepare_context",
         started,
         collection_name=state["collection_name"],
         project_id=state["project_id"],
         project_slug=state["project_slug"],
+        retrieval_intent=retrieval_config,
     )
     logger.info(
-        "agent graph prepared run=%s project=%s collection=%s",
+        "agent graph prepared run=%s project=%s collection=%s intent_top_k=%s",
         state["graph_run_id"],
         state["project_id"],
         state["collection_name"],
+        retrieval_config["top_k"],
     )
-    return {"steps": state["steps"] + [step]}
+    return {
+        "top_k": retrieval_config["top_k"],
+        "top_n": retrieval_config["rerank_top_n"],
+        "score_threshold": retrieval_config["score_threshold"],
+        "steps": state["steps"] + [step],
+    }
 
 
 async def _retrieve_evidence(state: _AgentGraphState) -> dict[str, Any]:
@@ -211,6 +220,7 @@ async def _retrieve_evidence(state: _AgentGraphState) -> dict[str, Any]:
         project_slug=(
             state["project_slug"] if state["retrieval_scope"] == "source_code" else None
         ),
+        score_threshold=state.get("score_threshold"),
     )
     chunks = critic_result.selected.reranked
     decision = critic_result.selected.decision

@@ -38,7 +38,7 @@ def test_critic_accepts_strong_evidence():
 def test_critic_retries_weak_evidence_and_prefers_better_retry(monkeypatch):
     calls = []
 
-    async def fake_retrieve_with_metadata(query, department, top_k=20, top_n=5, collection_name=None):
+    async def fake_retrieve_with_metadata(query, department, top_k=20, top_n=5, collection_name=None, retrieval_scope="documents", project_slug=None, score_threshold=None):
         calls.append((top_k, top_n))
         if len(calls) == 1:
             return [_chunk("무관한 텍스트", 0.31)], [_chunk("무관한 텍스트", 0.31)]

@@ -269,6 +269,7 @@ async def retrieve_with_metadata(
     collection_name: str | None = None,
     retrieval_scope: RetrievalScope = "documents",
     project_slug: str | None = None,
+    score_threshold: float | None = None,
 ) -> tuple[list[dict], list[dict]]:
     if retrieval_scope == "documents" and project_slug is None:
         candidates = await hybrid_search(
@@ -289,7 +290,7 @@ async def retrieve_with_metadata(
     if not candidates:
         return [], []
     passages = [c["text"] for c in candidates]
-    reranked = await rerank(query, passages, top_n=top_n)
+    reranked = await rerank(query, passages, top_n=top_n, score_threshold=score_threshold)
     return candidates, merge_rerank_scores(candidates, reranked)
 
 
@@ -301,6 +302,7 @@ async def retrieve_with_critic(
     collection_name: str | None = None,
     retrieval_scope: RetrievalScope = "documents",
     project_slug: str | None = None,
+    score_threshold: float | None = None,
 ) -> CriticResult:
     if retrieval_scope == "documents" and project_slug is None:
         initial_candidates, initial_reranked = await retrieve_with_metadata(
@@ -309,6 +311,7 @@ async def retrieve_with_critic(
             top_k=top_k,
             top_n=top_n,
             collection_name=collection_name,
+            score_threshold=score_threshold,
         )
     else:
         initial_candidates, initial_reranked = await retrieve_with_metadata(
@@ -319,6 +322,7 @@ async def retrieve_with_critic(
             collection_name=collection_name,
             retrieval_scope=retrieval_scope,
             project_slug=project_slug,
+            score_threshold=score_threshold,
         )
     initial_decision = assess_retrieval(
         query,
@@ -344,6 +348,7 @@ async def retrieve_with_critic(
             top_k=retry_plan.top_k,
             top_n=retry_plan.top_n,
             collection_name=collection_name,
+            score_threshold=score_threshold,
         )
     else:
         retry_candidates, retry_reranked = await retrieve_with_metadata(
@@ -354,6 +359,7 @@ async def retrieve_with_critic(
             collection_name=collection_name,
             retrieval_scope=retrieval_scope,
             project_slug=project_slug,
+            score_threshold=score_threshold,
         )
     retry_decision = assess_retrieval(
         query,
@@ -379,6 +385,7 @@ async def retrieve(
     collection_name: str | None = None,
     retrieval_scope: RetrievalScope = "documents",
     project_slug: str | None = None,
+    score_threshold: float | None = None,
 ) -> list[dict]:
     critic_result = await retrieve_with_critic(
         query,
@@ -388,5 +395,6 @@ async def retrieve(
         collection_name=collection_name,
         retrieval_scope=retrieval_scope,
         project_slug=project_slug,
+        score_threshold=score_threshold,
     )
     return critic_result.selected.reranked

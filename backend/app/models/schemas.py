@@ -5,10 +5,6 @@ from pydantic import BaseModel, Field
 class DocumentMetadata(BaseModel):
     file: str
     page: int = 0
-    year: int
-    client: str
-    domain: str
-    project_type: str
     department: str
     section: str = ""
 
@@ -16,14 +12,6 @@ class DocumentMetadata(BaseModel):
 class ChunkPayload(DocumentMetadata):
     text: str
     chunk_id: str
-
-
-class IngestRequest(BaseModel):
-    year: int
-    client: str
-    domain: str
-    project_type: str
-    department: str
 
 
 class DocumentSource(BaseModel):
@@ -81,10 +69,6 @@ class UserInfo(BaseModel):
 class DocumentSummary(BaseModel):
     file: str
     department: str | None = None
-    year: int | None = None
-    client: str | None = None
-    domain: str | None = None
-    project_type: str | None = None
     pages: list[int] = []
     sections: list[str] = []
     chunk_count: int = 0

@@ -117,6 +117,16 @@ DEFAULT_SOURCE_EXCLUDE_GLOBS = [
     "**/*.bak",
     "**/*.old",
     "**/*.log",
+    "**/*.bundle.js",
+    "**/*.chunk.js",
+    "**/bower_components/**",
+    "**/ext/**",
+    "**/dwr/**",
+    "**/*.swf",
+    "**/*.woff",
+    "**/*.woff2",
+    "**/*.ttf",
+    "**/*.eot",
 ]
 
 
@@ -129,6 +139,18 @@ class ProjectSourceConfig(BaseModel):
     max_file_size_bytes: int = Field(default=1048576, ge=1, le=10 * 1024 * 1024)
     encoding: str = "utf-8"
     follow_symlinks: bool = False
+    file_type_priority: list[str] = Field(
+        default_factory=lambda: [
+            "**/*.java",
+            "**/*.xml",
+            "**/*.sql",
+            "**/*.properties",
+            "**/*.jsp",
+            "**/*.json",
+            "**/*.md",
+            "**/*.js",
+        ]
+    )
 
     # SVN 연결 정보
     svn_url: str | None = None

@@ -11,6 +11,7 @@ from app.models.project_schemas import (
     DEFAULT_SOURCE_INCLUDE_GLOBS,
     DEFAULT_SOURCE_EXCLUDE_GLOBS,
 )
+from app.services.chunkers import get_chunker
 
 SourceSkipReason = Literal[
     "excluded",
@@ -21,7 +22,20 @@ SourceSkipReason = Literal[
     "undecodable",
     "empty",
 ]
+
+SourceChunkType = Literal[
+    "line_range",
+    "java_class",
+    "java_method",
+    "xml_query",
+    "xml_bean",
+    "jsp_section",
+    "project_summary",
+    "config_file",
+]
+
 DEFAULT_CHUNKING_VERSION = "source-v1"
+SUMMARY_FILENAME = "RAG_PROJECT_SUMMARY.md"
 
 LANGUAGE_BY_EXTENSION = {
     ".py": "python",
@@ -39,9 +53,27 @@ LANGUAGE_BY_EXTENSION = {
     ".yml": "yaml",
     ".json": "json",
     ".html": "html",
+    ".jsp": "jsp",
     ".css": "css",
     ".sh": "shell",
+    ".xml": "xml",
+    ".properties": "properties",
 }
+
+# Lower number = higher retrieval priority
+_FILE_PRIORITY_MAP: list[tuple[str, int]] = [
+    ("**/*.java", 1),
+    ("**/pom.xml", 1),
+    ("**/web.xml", 1),
+    ("**/application*.properties", 1),
+    ("**/*.sql", 2),
+    ("**/*.xml", 2),
+    ("**/*.properties", 2),
+    ("**/*.jsp", 3),
+    ("**/*.json", 3),
+    ("**/*.md", 3),
+    ("**/*.js", 4),
+]
 
 
 class SourceFileSkip(Exception):
@@ -140,15 +172,38 @@ def chunk_source_file(
 
     file_hash = content_hash(raw)
     language = detect_language(normalized)
+    filename = PurePosixPath(normalized).name
+    file_priority = _file_priority(normalized)
+
+    # RAG_PROJECT_SUMMARY.md — always single chunk, highest priority
+    if filename == SUMMARY_FILENAME:
+        summary_text = text.strip()[:8_000]
+        if not summary_text:
+            raise SourceFileSkip("empty", normalized)
+        chunk_id = _chunk_id(project_slug, normalized, chunking_version, "summary:0")
+        return [{
+            "chunk_id": chunk_id,
+            "source_kind": "source_code",
+            "project_slug": project_slug,
+            "relative_path": normalized,
+            "language": "markdown",
+            "start_line": 1,
+            "end_line": len(lines),
+            "content_hash": file_hash,
+            "svn_revision": svn_revision,
+            "chunk_type": "project_summary",
+            "class_name": None,
+            "method_name": None,
+            "file_priority": 1,
+            "text": summary_text,
+        }]
+
+    chunker = get_chunker(language, filename=filename, max_lines=max_lines)
+    chunk_results = chunker.chunk(text, max_chunk_chars=8_000)
+
     chunks: list[dict] = []
-    for start_index in range(0, len(lines), max_lines):
-        chunk_lines = lines[start_index : start_index + max_lines]
-        chunk_text = "\n".join(chunk_lines).strip()[:8_000]
-        if not chunk_text:
-            continue
-        start_line = start_index + 1
-        end_line = start_index + len(chunk_lines)
-        chunk_locator = f"{start_line}:{end_line}:{hashlib.sha1(chunk_text.encode('utf-8')).hexdigest()}"
+    for cr in chunk_results:
+        chunk_locator = f"{cr.start_line}:{cr.end_line}:{hashlib.sha1(cr.text.encode('utf-8')).hexdigest()}"
         chunk_id = _chunk_id(project_slug, normalized, chunking_version, chunk_locator)
         chunks.append(
             {
@@ -157,12 +212,15 @@ def chunk_source_file(
                 "project_slug": project_slug,
                 "relative_path": normalized,
                 "language": language,
-                "start_line": start_line,
-                "end_line": end_line,
+                "start_line": cr.start_line,
+                "end_line": cr.end_line,
                 "content_hash": file_hash,
                 "svn_revision": svn_revision,
-                "chunk_type": "line_range",
-                "text": chunk_text,
+                "chunk_type": cr.chunk_type,
+                "class_name": cr.class_name,
+                "method_name": cr.method_name,
+                "file_priority": file_priority,
+                "text": cr.text,
             }
         )
     if not chunks:
@@ -200,3 +258,10 @@ def _looks_binary(content: bytes) -> bool:
 
 def _looks_windows_absolute(path: str) -> bool:
     return len(path) >= 3 and path[1] == ":" and path[2] in ("\\", "/")
+
+
+def _file_priority(relative_path: str) -> int:
+    for pattern, priority in _FILE_PRIORITY_MAP:
+        if _glob_match(relative_path, pattern):
+            return priority
+    return 5

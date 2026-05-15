@@ -2,7 +2,8 @@ import logging
 import shutil
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
+from pydantic import BaseModel
 
 from app.core.auth import require_admin
 from app.models.project_schemas import (
@@ -24,8 +25,26 @@ from app.services.projects import (
 )
 from app.services.retrieval import delete_project_source_chunks
 from app.services.source_index_state import SourceIndexStateRepository
+from app.services.summary_generator import (
+    generate_summary_draft,
+    read_summary,
+    write_summary,
+)
 
 router = APIRouter(prefix="/projects", tags=["projects"])
+
+
+class SummaryUpdateRequest(BaseModel):
+    content: str
+
+
+class SummaryResponse(BaseModel):
+    content: str | None
+    exists: bool
+
+
+class SummaryDraftResponse(BaseModel):
+    draft: str
 
 
 @router.get("", response_model=list[ProjectResponse])
@@ -70,6 +89,48 @@ async def delete_project_api(project_id: str, _: UserInfo = Depends(require_admi
                 shutil.rmtree(repo_path)
             except Exception:
                 logging.getLogger(__name__).warning("repo_root 삭제 실패: %s", repo_path)
+
+
+@router.get("/{project_id}/summary", response_model=SummaryResponse)
+async def get_project_summary(project_id: str, _: UserInfo = Depends(require_admin)):
+    project = get_project(project_id)
+    if not project.source_config.repo_root:
+        return SummaryResponse(content=None, exists=False)
+    content = read_summary(project.source_config.repo_root)
+    return SummaryResponse(content=content, exists=content is not None)
+
+
+@router.put("/{project_id}/summary", response_model=SummaryResponse)
+async def update_project_summary(
+    project_id: str,
+    request: SummaryUpdateRequest,
+    _: UserInfo = Depends(require_admin),
+):
+    project = get_project(project_id)
+    if not project.source_config.repo_root:
+        raise HTTPException(status_code=400, detail="repo_root이 설정되지 않았습니다.")
+    write_summary(project.source_config.repo_root, request.content)
+
+    # Re-index summary file immediately
+    from app.services.source_indexer import SourceIndexRequest, index_project_source
+    from app.services.source_processor import SUMMARY_FILENAME
+    await index_project_source(
+        project,
+        SourceIndexRequest(changed_files=[SUMMARY_FILENAME]),
+    )
+    return SummaryResponse(content=request.content, exists=True)
+
+
+@router.post("/{project_id}/summary/generate", response_model=SummaryDraftResponse)
+async def generate_project_summary(project_id: str, _: UserInfo = Depends(require_admin)):
+    project = get_project(project_id)
+    if not project.source_config.repo_root:
+        raise HTTPException(status_code=400, detail="repo_root이 설정되지 않았습니다.")
+    draft = await generate_summary_draft(
+        project_slug=project.slug,
+        repo_root=project.source_config.repo_root,
+    )
+    return SummaryDraftResponse(draft=draft)
 
 
 @router.get("/{project_id}/export")

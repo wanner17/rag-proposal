@@ -66,6 +66,14 @@ export async function listProjects(token: string) {
   return res.json() as Promise<Project[]>;
 }
 
+export async function getProject(projectId: string, token: string) {
+  const res = await fetch(`${API_BASE}/projects/${projectId}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error("프로젝트 조회 실패");
+  return res.json() as Promise<Project>;
+}
+
 export async function createProject(payload: ProjectCreatePayload, token: string) {
   const res = await fetch(`${API_BASE}/projects`, {
     method: "POST",
@@ -183,5 +191,39 @@ export async function triggerIncrementalIndex(projectId: string, token: string) 
     body: JSON.stringify({ changed_files: [], deleted_files: [] }),
   });
   if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+// ── Summary API ──────────────────────────────────────────────────────────────
+
+export interface SummaryResponse {
+  content: string | null;
+  exists: boolean;
+}
+
+export async function getProjectSummary(projectId: string, token: string): Promise<SummaryResponse> {
+  const res = await fetch(`${API_BASE}/projects/${projectId}/summary`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error("요약 조회 실패");
+  return res.json();
+}
+
+export async function updateProjectSummary(projectId: string, content: string, token: string): Promise<SummaryResponse> {
+  const res = await fetch(`${API_BASE}/projects/${projectId}/summary`, {
+    method: "PUT",
+    headers: authHeaders(token),
+    body: JSON.stringify({ content }),
+  });
+  if (!res.ok) throw new Error("요약 저장 실패");
+  return res.json();
+}
+
+export async function generateProjectSummaryDraft(projectId: string, token: string): Promise<{ draft: string }> {
+  const res = await fetch(`${API_BASE}/projects/${projectId}/summary/generate`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error("요약 생성 실패");
   return res.json();
 }

@@ -13,6 +13,7 @@ from app.services.source_index_state import (
     SourceProjectState,
 )
 from app.services.source_processor import (
+    SUMMARY_FILENAME,
     SourceFileSkip,
     chunk_source_file,
     normalize_relative_path,
@@ -85,6 +86,8 @@ async def index_project_source(
     deleted = 0
     skipped = 0
     failures: list[SourceIndexFailure] = []
+    consecutive_failures = 0
+    _CIRCUIT_BREAKER_THRESHOLD = 10
 
     for relative_path in request.deleted_files:
         try:
@@ -108,8 +111,10 @@ async def index_project_source(
                 svn_revision=request.svn_revision,
             )
             file_hash = chunks[0]["content_hash"]
-            existing = repo.get_file_record(project.slug, chunks[0]["relative_path"])
-            if existing and existing.content_hash == file_hash and existing.status == "indexed":
+            normalized_path = chunks[0]["relative_path"]
+            is_summary = normalized_path.endswith(SUMMARY_FILENAME)
+            existing = repo.get_file_record(project.slug, normalized_path)
+            if not is_summary and existing and existing.content_hash == file_hash and existing.status == "indexed":
                 skipped += 1
                 continue
             await delete_source_chunks(
@@ -155,6 +160,16 @@ async def index_project_source(
                 )
             )
             failures.append(SourceIndexFailure(relative_path, type(exc).__name__, str(exc)))
+            consecutive_failures += 1
+            if consecutive_failures >= _CIRCUIT_BREAKER_THRESHOLD:
+                failures.append(SourceIndexFailure(
+                    relative_path="__circuit_breaker__",
+                    reason="circuit_breaker_tripped",
+                    detail=f"{consecutive_failures} consecutive failures — indexing halted",
+                ))
+                break
+        else:
+            consecutive_failures = 0
 
     status = "ready" if not failures else "partial_failed"
     now = _utc_now()

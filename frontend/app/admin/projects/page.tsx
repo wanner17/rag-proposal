@@ -358,6 +358,32 @@ export default function ProjectAdminPage() {
                 </button>
               </div>
             </form>
+
+            {selectedProject && (
+              <div className="mt-6 border-t border-slate-100 pt-6">
+                <h3 className="text-sm font-semibold text-slate-700 mb-3">고급 관리</h3>
+                <div className="flex flex-wrap gap-2">
+                  <a
+                    href={`/admin/projects/${selectedProject.id}/exclusions`}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100"
+                  >
+                    🚫 제외 규칙 관리
+                  </a>
+                  <a
+                    href={`/admin/projects/${selectedProject.id}/summary`}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100"
+                  >
+                    📄 프로젝트 요약 편집
+                  </a>
+                  <a
+                    href={`/admin/projects/${selectedProject.id}/debug`}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100"
+                  >
+                    🔍 검색 디버그
+                  </a>
+                </div>
+              </div>
+            )}
           </main>
         </div>
       </div>

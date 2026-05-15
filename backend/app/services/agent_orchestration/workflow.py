@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 from dataclasses import asdict
 from time import perf_counter
@@ -10,6 +11,9 @@ from fastapi import HTTPException, status
 
 from app.models.schemas import DocumentSource, Source, SourceCodeSource
 from app.services.agent_orchestration.answer_quality import review_answer_quality
+from app.services.agent_orchestration.contamination_detector import detect_contamination
+from app.services.agent_orchestration.question_classifier import QuestionType, classify_question
+from app.services.agent_orchestration.retrieval_planner import RetrievalPlan, build_retrieval_plan
 from app.services.agent_orchestration.types import (
     AnswerQualityReport,
     AgentWorkflowInput,
@@ -44,6 +48,13 @@ class _AgentGraphState(TypedDict):
     critic_result: NotRequired[CriticResult]
     answer_quality: NotRequired[AnswerQualityReport]
     steps: list[AgentWorkflowTraceStep]
+    # Phase 3: agentic retrieval fields
+    question_type: NotRequired[str]
+    retrieval_plan: NotRequired[RetrievalPlan | None]
+    retry_count: NotRequired[int]
+    max_retries: NotRequired[int]
+    retry_reason: NotRequired[list[str]]
+    should_retry: NotRequired[bool]
 
 
 async def run_agent_query(workflow_input: AgentWorkflowInput) -> AgentWorkflowResult:
@@ -61,7 +72,7 @@ async def run_agent_query(workflow_input: AgentWorkflowInput) -> AgentWorkflowRe
         "conversation_history": list(workflow_input.conversation_history),
         "steps": [],
     }
-    state = await graph.ainvoke(initial_state)
+    state = await asyncio.wait_for(graph.ainvoke(initial_state), timeout=60.0)
     critic_result = state.get("critic_result")
     selected_pass = critic_result.selected.name if critic_result else None
     retry_triggered = bool(critic_result and critic_result.retry is not None)
@@ -95,22 +106,49 @@ async def stream_agent_query(
         "steps": [],
     }
 
-    yield {"step_start": {"name": "prepare_context", "index": 0}}
+    yield {"step_start": {"name": "classify_question", "index": 0}}
+    t = perf_counter()
+    state.update(await _classify_question(state))
+    yield {"step_end": {"name": "classify_question", "index": 0, "duration_ms": round((perf_counter() - t) * 1000, 1)}}
+
+    yield {"step_start": {"name": "prepare_context", "index": 1}}
     t = perf_counter()
     state.update(await _prepare_context(state))
-    yield {"step_end": {"name": "prepare_context", "index": 0, "duration_ms": round((perf_counter() - t) * 1000, 1)}}
+    yield {"step_end": {"name": "prepare_context", "index": 1, "duration_ms": round((perf_counter() - t) * 1000, 1)}}
 
-    yield {"step_start": {"name": "retrieve_evidence", "index": 1}}
+    yield {"step_start": {"name": "plan_retrieval", "index": 2}}
     t = perf_counter()
-    state.update(await _retrieve_evidence(state))
-    yield {"step_end": {"name": "retrieve_evidence", "index": 1, "duration_ms": round((perf_counter() - t) * 1000, 1)}}
+    state.update(await _plan_retrieval(state))
+    yield {"step_end": {"name": "plan_retrieval", "index": 2, "duration_ms": round((perf_counter() - t) * 1000, 1)}}
+
+    # Retrieval + validation retry loop
+    retrieve_index = 3
+    while True:
+        yield {"step_start": {"name": "retrieve_evidence", "index": retrieve_index}}
+        t = perf_counter()
+        state.update(await _retrieve_evidence(state))
+        yield {"step_end": {"name": "retrieve_evidence", "index": retrieve_index, "duration_ms": round((perf_counter() - t) * 1000, 1)}}
+
+        yield {"step_start": {"name": "validate_retrieval", "index": retrieve_index + 1}}
+        t = perf_counter()
+        state.update(await _validate_retrieval(state))
+        yield {"step_end": {"name": "validate_retrieval", "index": retrieve_index + 1, "duration_ms": round((perf_counter() - t) * 1000, 1)}}
+
+        if state.get("should_retry"):
+            yield {"step_start": {"name": "replan_retrieval", "index": retrieve_index + 2}}
+            t = perf_counter()
+            state.update(await _replan_retrieval(state))
+            yield {"step_end": {"name": "replan_retrieval", "index": retrieve_index + 2, "duration_ms": round((perf_counter() - t) * 1000, 1)}}
+            retrieve_index += 3
+            continue
+        break
 
     chunks = state.get("chunks", [])
     if not chunks:
-        yield {"step_start": {"name": "finalize_response", "index": 4}}
+        yield {"step_start": {"name": "finalize_response", "index": retrieve_index + 2}}
         t = perf_counter()
         state.update(await _finalize_response(state))
-        yield {"step_end": {"name": "finalize_response", "index": 4, "duration_ms": round((perf_counter() - t) * 1000, 1)}}
+        yield {"step_end": {"name": "finalize_response", "index": retrieve_index + 2, "duration_ms": round((perf_counter() - t) * 1000, 1)}}
         yield {"sources": []}
         yield {"token": state["answer"]}
         yield {"metadata": _metadata_from_state(state)}
@@ -119,7 +157,8 @@ async def stream_agent_query(
     sources = [_source_from_chunk(chunk) for chunk in chunks]
     yield {"sources": sources}
 
-    yield {"step_start": {"name": "generate_answer", "index": 2}}
+    gen_index = retrieve_index + 2
+    yield {"step_start": {"name": "generate_answer", "index": gen_index}}
     started = perf_counter()
     tokens: list[str] = []
     async for token in generate_tokens(state["query"], chunks, history=state.get("conversation_history")):
@@ -135,17 +174,17 @@ async def stream_agent_query(
             + [_step("generate_answer", started, source_count=len(sources), streamed=True)],
         }
     )
-    yield {"step_end": {"name": "generate_answer", "index": 2, "duration_ms": gen_duration}}
+    yield {"step_end": {"name": "generate_answer", "index": gen_index, "duration_ms": gen_duration}}
 
-    yield {"step_start": {"name": "review_answer_quality", "index": 3}}
+    yield {"step_start": {"name": "review_answer_quality", "index": gen_index + 1}}
     t = perf_counter()
     state.update(await _review_answer_quality(state))
-    yield {"step_end": {"name": "review_answer_quality", "index": 3, "duration_ms": round((perf_counter() - t) * 1000, 1)}}
+    yield {"step_end": {"name": "review_answer_quality", "index": gen_index + 1, "duration_ms": round((perf_counter() - t) * 1000, 1)}}
 
-    yield {"step_start": {"name": "finalize_response", "index": 4}}
+    yield {"step_start": {"name": "finalize_response", "index": gen_index + 2}}
     t = perf_counter()
     state.update(await _finalize_response(state))
-    yield {"step_end": {"name": "finalize_response", "index": 4, "duration_ms": round((perf_counter() - t) * 1000, 1)}}
+    yield {"step_end": {"name": "finalize_response", "index": gen_index + 2, "duration_ms": round((perf_counter() - t) * 1000, 1)}}
 
     yield {"metadata": _metadata_from_state(state)}
 
@@ -160,25 +199,131 @@ def _build_graph():
         ) from exc
 
     graph = StateGraph(_AgentGraphState)
+    graph.add_node("classify_question", _classify_question)
     graph.add_node("prepare_context", _prepare_context)
+    graph.add_node("plan_retrieval", _plan_retrieval)
     graph.add_node("retrieve_evidence", _retrieve_evidence)
+    graph.add_node("validate_retrieval", _validate_retrieval)
+    graph.add_node("replan_retrieval", _replan_retrieval)
     graph.add_node("generate_answer", _generate_answer)
     graph.add_node("review_answer_quality", _review_answer_quality)
     graph.add_node("finalize_response", _finalize_response)
-    graph.set_entry_point("prepare_context")
-    graph.add_edge("prepare_context", "retrieve_evidence")
+    graph.set_entry_point("classify_question")
+    graph.add_edge("classify_question", "prepare_context")
+    graph.add_edge("prepare_context", "plan_retrieval")
+    graph.add_edge("plan_retrieval", "retrieve_evidence")
+    graph.add_edge("retrieve_evidence", "validate_retrieval")
     graph.add_conditional_edges(
-        "retrieve_evidence",
-        _route_after_retrieval,
+        "validate_retrieval",
+        _route_after_validation,
         {
+            "replan_retrieval": "replan_retrieval",
             "generate_answer": "generate_answer",
             "finalize_response": "finalize_response",
         },
     )
+    graph.add_edge("replan_retrieval", "retrieve_evidence")
     graph.add_edge("generate_answer", "review_answer_quality")
     graph.add_edge("review_answer_quality", "finalize_response")
     graph.add_edge("finalize_response", END)
     return graph.compile()
+
+
+async def _classify_question(state: _AgentGraphState) -> dict[str, Any]:
+    started = perf_counter()
+    q_type = classify_question(state["query"])
+    step = _step("classify_question", started, question_type=q_type.value)
+    logger.info("agent graph classified run=%s type=%s", state["graph_run_id"], q_type.value)
+    return {"question_type": q_type.value, "steps": state["steps"] + [step]}
+
+
+async def _plan_retrieval(state: _AgentGraphState) -> dict[str, Any]:
+    started = perf_counter()
+    q_type = QuestionType(state.get("question_type", QuestionType.GENERAL))
+    plan = build_retrieval_plan(q_type)
+    step = _step("plan_retrieval", started, question_type=q_type.value, top_k=plan.top_k, top_n=plan.top_n)
+    return {
+        "retrieval_plan": plan,
+        "top_k": plan.top_k,
+        "top_n": plan.top_n,
+        "score_threshold": plan.score_threshold,
+        "retry_count": 0,
+        "max_retries": 3,
+        "should_retry": False,
+        "retry_reason": [],
+        "steps": state["steps"] + [step],
+    }
+
+
+async def _validate_retrieval(state: _AgentGraphState) -> dict[str, Any]:
+    started = perf_counter()
+    chunks = state.get("chunks", [])
+    contamination = detect_contamination(chunks)
+    critic_result = state.get("critic_result")
+    retry_count = state.get("retry_count", 0)
+    max_retries = state.get("max_retries", 3)
+
+    issues: list[str] = []
+    if contamination.is_contaminated:
+        issues.append("frontend_contamination")
+    if critic_result and not critic_result.selected.decision.sufficient:
+        issues.append("insufficient_evidence")
+
+    should_retry = bool(issues) and retry_count < max_retries
+    step = _step(
+        "validate_retrieval",
+        started,
+        contamination_ratio=round(contamination.contamination_ratio, 2),
+        issues=issues,
+        should_retry=should_retry,
+        retry_count=retry_count,
+    )
+    logger.info(
+        "agent graph validated run=%s issues=%s retry=%s count=%s/%s",
+        state["graph_run_id"], issues, should_retry, retry_count, max_retries,
+    )
+    return {
+        "should_retry": should_retry,
+        "retry_reason": issues,
+        "steps": state["steps"] + [step],
+    }
+
+
+async def _replan_retrieval(state: _AgentGraphState) -> dict[str, Any]:
+    started = perf_counter()
+    reasons = state.get("retry_reason", [])
+    retry_count = state.get("retry_count", 0)
+    top_k = state["top_k"]
+    top_n = state["top_n"]
+    threshold = state.get("score_threshold") or 0.4
+
+    if "insufficient_evidence" in reasons:
+        top_k = min(top_k * 2, 60)
+        top_n = min(top_n + 2, 12)
+        threshold = max(threshold - 0.05, 0.2)
+
+    step = _step(
+        "replan_retrieval",
+        started,
+        reasons=reasons,
+        new_top_k=top_k,
+        new_top_n=top_n,
+        retry_count=retry_count + 1,
+    )
+    return {
+        "top_k": top_k,
+        "top_n": top_n,
+        "score_threshold": threshold,
+        "retry_count": retry_count + 1,
+        "should_retry": False,
+        "steps": state["steps"] + [step],
+    }
+
+
+def _route_after_validation(state: _AgentGraphState) -> str:
+    if state.get("should_retry"):
+        return "replan_retrieval"
+    return "generate_answer" if state.get("chunks") else "finalize_response"
 
 
 async def _prepare_context(state: _AgentGraphState) -> dict[str, Any]:

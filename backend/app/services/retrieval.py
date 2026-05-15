@@ -2,7 +2,7 @@ from qdrant_client import AsyncQdrantClient
 from qdrant_client.models import (
     Distance, VectorParams, SparseVectorParams, SparseIndexParams,
     PointStruct, SparseVector, Filter, FieldCondition, MatchValue,
-    Prefetch, FusionQuery, Fusion, FilterSelector,
+    Prefetch, FusionQuery, Fusion, FilterSelector, PayloadSchemaType,
 )
 from kiwipiepy import Kiwi
 from typing import Literal
@@ -31,6 +31,9 @@ def get_client() -> AsyncQdrantClient:
     return _client
 
 
+_PAYLOAD_INDEX_FIELDS = ("chunk_type", "project_slug", "language", "source_kind")
+
+
 async def ensure_collection(collection_name: str | None = None):
     client = get_client()
     target_collection = collection_name or settings.QDRANT_COLLECTION
@@ -44,6 +47,16 @@ async def ensure_collection(collection_name: str | None = None):
                 "bm25": SparseVectorParams(index=SparseIndexParams(on_disk=False))
             },
         )
+
+    for field_name in _PAYLOAD_INDEX_FIELDS:
+        try:
+            await client.create_payload_index(
+                collection_name=target_collection,
+                field_name=field_name,
+                field_schema=PayloadSchemaType.KEYWORD,
+            )
+        except Exception:
+            pass  # index already exists
 
 
 def _bm25_encode(text: str) -> SparseVector:

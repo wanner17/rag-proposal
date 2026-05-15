@@ -2,26 +2,29 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from sentence_transformers import SentenceTransformer
+import json
 import torch
 import logging
 import re
 import unicodedata
 
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 model: SentenceTransformer | None = None
 
-MAX_TEXT_LENGTH = 8192
-MAX_TEXTS_PER_REQUEST = 256
+MAX_TEXT_LENGTH = 8000
+MAX_TEXTS_PER_REQUEST = 64
+MAX_BATCH_SIZE = 16
 
 
 def sanitize_text(text: str) -> str:
+    # null 바이트 제거
+    text = text.replace("\x00", " ")
     # 제어문자 제거 (탭·개행 제외)
-    text = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", " ", text)
+    text = re.sub(r"[\x01-\x08\x0b\x0c\x0e-\x1f\x7f]", " ", text)
     # 유효하지 않은 유니코드 대체문자 제거
-    text = "".join(
-        c for c in text if unicodedata.category(c) != "Cs"
-    )
+    text = "".join(c for c in text if unicodedata.category(c) != "Cs")
     # 연속 공백 압축
     text = re.sub(r" {2,}", " ", text).strip()
     return text
@@ -68,6 +71,7 @@ async def embed(req: EmbedRequest):
         )
 
     cleaned = []
+    truncated_count = 0
     for i, text in enumerate(req.texts):
         if not isinstance(text, str):
             raise HTTPException(status_code=400, detail=f"texts[{i}] 문자열 아님")
@@ -75,15 +79,29 @@ async def embed(req: EmbedRequest):
         if not text:
             text = " "  # 빈 텍스트는 공백으로 대체 (encode 오류 방지)
         if len(text) > MAX_TEXT_LENGTH:
-            logger.warning(f"texts[{i}] 길이 {len(text)} 초과 → {MAX_TEXT_LENGTH}자로 자름")
+            truncated_count += 1
             text = text[:MAX_TEXT_LENGTH]
         cleaned.append(text)
+
+    if truncated_count:
+        logger.warning(json.dumps({
+            "event": "texts_truncated",
+            "count": truncated_count,
+            "max_length": MAX_TEXT_LENGTH,
+        }))
+
+    logger.info(json.dumps({
+        "event": "embed_request",
+        "batch_size": len(cleaned),
+        "max_len": max(len(t) for t in cleaned),
+        "truncated_count": truncated_count,
+    }))
 
     try:
         embeddings = model.encode(
             cleaned,
             normalize_embeddings=True,
-            batch_size=32,
+            batch_size=MAX_BATCH_SIZE,
             show_progress_bar=False,
         )
     except Exception as e:

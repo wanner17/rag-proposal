@@ -172,6 +172,25 @@ def _point_to_chunk(point) -> dict:
     return payload
 
 
+async def fetch_project_summary_chunks(
+    project_slug: str,
+    collection_name: str | None = None,
+) -> list[dict]:
+    client = get_client()
+    coll = collection_name or settings.QDRANT_COLLECTION
+    points, _ = await client.scroll(
+        collection_name=coll,
+        scroll_filter=Filter(must=[
+            FieldCondition(key="project_slug", match=MatchValue(value=project_slug)),
+            FieldCondition(key="chunk_type", match=MatchValue(value="project_summary")),
+        ]),
+        limit=3,
+        with_payload=True,
+        with_vectors=False,
+    )
+    return [_point_to_chunk(p) for p in points]
+
+
 async def hybrid_search(
     query: str,
     department: str | None,

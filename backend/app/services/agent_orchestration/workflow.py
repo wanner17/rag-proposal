@@ -21,7 +21,7 @@ from app.services.agent_orchestration.types import (
     AgentWorkflowTraceStep,
 )
 from app.services.llm import generate, generate_tokens, get_retrieval_config
-from app.services.retrieval import ensure_collection, retrieve_with_critic
+from app.services.retrieval import ensure_collection, fetch_project_summary_chunks, retrieve_with_critic
 from app.services.retrieval_critic import CriticResult
 
 logger = logging.getLogger(__name__)
@@ -353,8 +353,23 @@ async def _prepare_context(state: _AgentGraphState) -> dict[str, Any]:
     }
 
 
+def _is_excluded_path(path: str, exclude_patterns: list[str]) -> bool:
+    parts = set(path.replace("\\", "/").split("/"))
+    for pattern in exclude_patterns:
+        for seg in (s for s in pattern.split("/") if s and s != "**"):
+            if seg.endswith("*"):
+                prefix = seg[:-1]
+                if prefix and any(p.startswith(prefix) for p in parts):
+                    return True
+            elif seg in parts:
+                return True
+    return False
+
+
 async def _retrieve_evidence(state: _AgentGraphState) -> dict[str, Any]:
     started = perf_counter()
+    plan: RetrievalPlan | None = state.get("retrieval_plan")
+
     critic_result = await retrieve_with_critic(
         state["query"],
         department=state["department"],
@@ -366,6 +381,22 @@ async def _retrieve_evidence(state: _AgentGraphState) -> dict[str, Any]:
         score_threshold=state.get("score_threshold"),
     )
     chunks = critic_result.selected.reranked
+
+    if plan and plan.effective_exclude_paths:
+        chunks = [
+            c for c in chunks
+            if not _is_excluded_path(c.get("relative_path") or c.get("file") or "", plan.effective_exclude_paths)
+        ]
+
+    if plan and plan.boost_project_summary and state.get("project_slug"):
+        summary_chunks = await fetch_project_summary_chunks(
+            state["project_slug"],
+            collection_name=state["collection_name"],
+        )
+        if summary_chunks:
+            existing_ids = {c.get("point_id") for c in chunks}
+            new_summaries = [c for c in summary_chunks if c.get("point_id") not in existing_ids]
+            chunks = new_summaries + chunks
     decision = critic_result.selected.decision
     step = _step(
         "retrieve_evidence",

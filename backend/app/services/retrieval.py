@@ -131,7 +131,12 @@ def _retrieval_filter(
         return _source_filter(project_slug)
     if retrieval_scope == "code_only":
         return _code_only_filter()
-    return _department_filter(department)
+    must = []
+    if project_slug:
+        must.append(FieldCondition(key="project_slug", match=MatchValue(value=project_slug)))
+    if department:
+        must.append(FieldCondition(key="department", match=MatchValue(value=department)))
+    return Filter(must=must) if must else None
 
 
 def _document_filter(file_name: str, department: str | None) -> Filter:

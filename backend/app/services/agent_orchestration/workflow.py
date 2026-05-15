@@ -217,9 +217,7 @@ async def _retrieve_evidence(state: _AgentGraphState) -> dict[str, Any]:
         top_n=state["top_n"],
         collection_name=state["collection_name"],
         retrieval_scope=state["retrieval_scope"],
-        project_slug=(
-            state["project_slug"] if state["retrieval_scope"] == "source_code" else None
-        ),
+        project_slug=state["project_slug"],
         score_threshold=state.get("score_threshold"),
     )
     chunks = critic_result.selected.reranked

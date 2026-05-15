@@ -72,7 +72,17 @@ export async function createProject(payload: ProjectCreatePayload, token: string
     headers: authHeaders(token),
     body: JSON.stringify(payload),
   });
-  if (!res.ok) throw new Error("프로젝트 생성 실패");
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    const detail = body?.detail;
+    if (Array.isArray(detail)) {
+      const msg = detail.map((e: { loc?: string[]; msg?: string }) =>
+        `${(e.loc ?? []).slice(1).join(".")}: ${e.msg}`
+      ).join("\n");
+      throw new Error(msg);
+    }
+    throw new Error(typeof detail === "string" ? detail : "프로젝트 생성 실패");
+  }
   return res.json() as Promise<Project>;
 }
 

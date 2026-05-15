@@ -364,6 +364,12 @@ export default function ProjectAdminPage() {
                 <h3 className="text-sm font-semibold text-slate-700 mb-3">고급 관리</h3>
                 <div className="flex flex-wrap gap-2">
                   <a
+                    href={`/admin/projects/${selectedProject.id}`}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs font-medium text-indigo-700 hover:bg-indigo-100"
+                  >
+                    📋 메타 문서 관리
+                  </a>
+                  <a
                     href={`/admin/projects/${selectedProject.id}/exclusions`}
                     className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100"
                   >

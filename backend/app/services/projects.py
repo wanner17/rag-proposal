@@ -10,7 +10,10 @@ from fastapi import HTTPException, status
 
 from app.core.config import settings
 from app.models.project_schemas import (
+    META_DOC_TO_COLUMN,
+    META_DOC_TYPES,
     ProjectCreateRequest,
+    ProjectMetaDocs,
     ProjectPluginBinding,
     ProjectRagConfig,
     ProjectResponse,
@@ -59,6 +62,9 @@ def _connect() -> sqlite3.Connection:
     columns = {row["name"] for row in conn.execute("PRAGMA table_info(projects)").fetchall()}
     if "source_json" not in columns:
         conn.execute("ALTER TABLE projects ADD COLUMN source_json TEXT")
+    for col in ("meta_summary", "meta_menu", "meta_feature", "meta_db", "meta_arch"):
+        if col not in columns:
+            conn.execute(f"ALTER TABLE projects ADD COLUMN {col} TEXT")
     conn.commit()
     return conn
 
@@ -204,6 +210,35 @@ def export_project(project_id: str) -> str:
     }
     # JSON is valid YAML 1.2, keeping the portable handoff dependency-free.
     return json.dumps(bundle, ensure_ascii=False, indent=2, sort_keys=True)
+
+
+def get_meta_docs(project_id: str) -> ProjectMetaDocs:
+    get_project(project_id)  # validates existence
+    with _connect() as conn:
+        row = conn.execute(
+            "SELECT meta_summary, meta_menu, meta_feature, meta_db, meta_arch FROM projects WHERE id = ?",
+            (project_id,),
+        ).fetchone()
+    if not row:
+        return ProjectMetaDocs()
+    return ProjectMetaDocs(
+        project_summary=row["meta_summary"],
+        menu_map=row["meta_menu"],
+        feature_map=row["meta_feature"],
+        db_schema_summary=row["meta_db"],
+        architecture=row["meta_arch"],
+    )
+
+
+def update_meta_doc(project_id: str, doc_type: str, content: str) -> None:
+    if doc_type not in META_DOC_TYPES:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail=f"지원하지 않는 문서 타입: {doc_type}")
+    col = META_DOC_TO_COLUMN[doc_type]
+    get_project(project_id)  # validates existence
+    with _connect() as conn:
+        conn.execute(f"UPDATE projects SET {col} = ?, updated_at = ? WHERE id = ?", (content, _utc_now(), project_id))
+        conn.commit()
 
 
 def import_project(bundle: str) -> ProjectResponse:

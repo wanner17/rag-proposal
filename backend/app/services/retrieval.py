@@ -191,7 +191,51 @@ async def fetch_project_summary_chunks(
     return [_point_to_chunk(p) for p in points]
 
 
+_META_DOC_OVERVIEW_TYPES = ["project_summary", "menu_map", "feature_map", "architecture"]
+_META_DOC_ALL_TYPES = ["project_summary", "menu_map", "feature_map", "db_schema_summary", "architecture"]
+
 _STRUCTURE_PATH_KEYWORDS = ("controller", "service", "mapper", "dao", "repository")
+
+
+async def fetch_meta_doc_chunks(
+    project_slug: str,
+    collection_name: str | None = None,
+    chunk_types: list[str] | None = None,
+) -> list[dict]:
+    """Hard-fetch meta document chunks (one per type) for PROJECT_OVERVIEW context."""
+    client = get_client()
+    coll = collection_name or settings.QDRANT_COLLECTION
+    types = chunk_types or _META_DOC_OVERVIEW_TYPES
+    results: list[dict] = []
+    for ct in types:
+        points, _ = await client.scroll(
+            collection_name=coll,
+            scroll_filter=Filter(must=[
+                FieldCondition(key="project_slug", match=MatchValue(value=project_slug)),
+                FieldCondition(key="chunk_type", match=MatchValue(value=ct)),
+            ]),
+            limit=1,
+            with_payload=True,
+            with_vectors=False,
+        )
+        results.extend(_point_to_chunk(p) for p in points)
+    return results
+
+
+async def delete_meta_doc_chunk_type(
+    project_slug: str,
+    chunk_type: str,
+    collection_name: str | None = None,
+) -> None:
+    """Delete all Qdrant chunks for a specific meta doc type in a project."""
+    client = get_client()
+    coll = collection_name or settings.QDRANT_COLLECTION
+    await ensure_collection(coll)
+    selector = FilterSelector(filter=Filter(must=[
+        FieldCondition(key="project_slug", match=MatchValue(value=project_slug)),
+        FieldCondition(key="chunk_type", match=MatchValue(value=chunk_type)),
+    ]))
+    await client.delete(collection_name=coll, points_selector=selector, wait=True)
 
 
 async def fetch_structure_chunks(

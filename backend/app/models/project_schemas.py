@@ -245,3 +245,47 @@ class ProjectImportRequest(BaseModel):
 class ProjectImportResponse(BaseModel):
     project: ProjectResponse
     imported: bool = True
+
+
+META_DOC_TYPES = ["project_summary", "menu_map", "feature_map", "db_schema_summary", "architecture"]
+
+META_DOC_TO_COLUMN: dict[str, str] = {
+    "project_summary": "meta_summary",
+    "menu_map": "meta_menu",
+    "feature_map": "meta_feature",
+    "db_schema_summary": "meta_db",
+    "architecture": "meta_arch",
+}
+
+
+class ProjectMetaDocs(BaseModel):
+    project_summary: str | None = None
+    menu_map: str | None = None
+    feature_map: str | None = None
+    db_schema_summary: str | None = None
+    architecture: str | None = None
+
+    def get(self, doc_type: str) -> str | None:
+        return getattr(self, doc_type, None)
+
+
+class MetaDocUpdateRequest(BaseModel):
+    content: str
+
+
+class MetaDocResponse(BaseModel):
+    doc_type: str
+    content: str | None
+    exists: bool
+
+
+class MetaDocDraftResponse(BaseModel):
+    draft: str
+
+
+class AllMetaDocsResponse(BaseModel):
+    project_summary: MetaDocResponse
+    menu_map: MetaDocResponse
+    feature_map: MetaDocResponse
+    db_schema_summary: MetaDocResponse
+    architecture: MetaDocResponse

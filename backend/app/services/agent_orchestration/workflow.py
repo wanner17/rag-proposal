@@ -21,7 +21,7 @@ from app.services.agent_orchestration.types import (
     AgentWorkflowTraceStep,
 )
 from app.services.llm import generate, generate_tokens, get_retrieval_config
-from app.services.retrieval import ensure_collection, fetch_project_summary_chunks, fetch_structure_chunks, retrieve_with_critic
+from app.services.retrieval import ensure_collection, fetch_meta_doc_chunks, fetch_project_summary_chunks, fetch_structure_chunks, retrieve_with_critic
 from app.services.retrieval_critic import CriticResult
 
 logger = logging.getLogger(__name__)
@@ -446,6 +446,18 @@ async def _retrieve_evidence(state: _AgentGraphState) -> dict[str, Any]:
             structure_prepended = len(new_struct)
             prepend_chunks.extend(new_struct)
 
+    meta_prepended = 0
+    if plan and plan.meta_doc_hard_include and state.get("project_slug"):
+        meta_chunks = await fetch_meta_doc_chunks(
+            state["project_slug"],
+            collection_name=state["collection_name"],
+        )
+        if meta_chunks:
+            existing_ids = {c.get("point_id") for c in chunks} | {c.get("point_id") for c in prepend_chunks}
+            new_meta = [c for c in meta_chunks if c.get("point_id") not in existing_ids]
+            meta_prepended = len(new_meta)
+            prepend_chunks = new_meta + prepend_chunks  # meta docs first
+
     if prepend_chunks:
         chunks = prepend_chunks + chunks
 
@@ -470,6 +482,7 @@ async def _retrieve_evidence(state: _AgentGraphState) -> dict[str, Any]:
         plan_boost_project_summary=plan.boost_project_summary if plan else False,
         summary_chunks_prepended=summary_prepended,
         structure_chunks_prepended=structure_prepended,
+        meta_doc_chunks_prepended=meta_prepended,
         chunk_type_distribution=chunk_type_dist,
         final_sources=[
             {

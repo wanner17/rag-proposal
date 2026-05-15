@@ -15,6 +15,7 @@ class RetrievalPlan:
     top_k: int
     top_n: int
     score_threshold: float
+    meta_doc_hard_include: bool = False
     # mutable runtime fields (updated during retry)
     _extra_exclude_paths: list[str] = field(default_factory=list, repr=False)
 
@@ -32,13 +33,14 @@ _FRONTEND_LIB_EXCLUDES = [
 
 _STRATEGIES: dict[QuestionType, dict] = {
     QuestionType.PROJECT_OVERVIEW: dict(
-        priority_chunk_types=["project_summary", "config_file", "java_class"],
+        priority_chunk_types=["project_summary", "menu_map", "feature_map", "architecture", "config_file", "java_class"],
         priority_paths=[
             "**/README*", "**/pom.xml", "**/web.xml",
             "**/application*.properties", "**/*Controller*", "**/*Service*",
         ],
         exclude_paths=_FRONTEND_LIB_EXCLUDES,
         boost_project_summary=True,
+        meta_doc_hard_include=True,
         top_k=30, top_n=8, score_threshold=0.3,
     ),
     QuestionType.DB_SQL_TRACING: dict(
@@ -108,6 +110,7 @@ def build_retrieval_plan(
         priority_paths=list(cfg["priority_paths"]),
         exclude_paths=list(cfg["exclude_paths"]),
         boost_project_summary=cfg["boost_project_summary"],
+        meta_doc_hard_include=cfg.get("meta_doc_hard_include", False),
         top_k=base_top_k or cfg["top_k"],
         top_n=base_top_n or cfg["top_n"],
         score_threshold=cfg["score_threshold"],

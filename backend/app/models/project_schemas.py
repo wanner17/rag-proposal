@@ -94,6 +94,11 @@ DEFAULT_SOURCE_EXCLUDE_GLOBS = [
     ".env.*",
     "*secret*",
     "*credential*",
+    "*.min.js",
+    "*.min.css",
+    "*.map",
+    "package-lock.json",
+    "yarn.lock",
 ]
 
 

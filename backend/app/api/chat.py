@@ -4,7 +4,7 @@ from fastapi.responses import StreamingResponse
 from app.models.schemas import ChatRequest, ChatResponse, DocumentSource, UserInfo
 from app.core.auth import get_current_user, resolve_department_scope
 from app.services.retrieval import retrieve_with_critic
-from app.services.llm import generate, generate_stream
+from app.services.llm import generate, generate_stream, _classify_intent
 from app.services.projects import get_project, get_default_project
 
 router = APIRouter(prefix="/chat", tags=["chat"])
@@ -51,12 +51,16 @@ async def chat_stream(req: ChatRequest, user: UserInfo = Depends(get_current_use
     department = resolve_department_scope(user, req.department)
     project = get_project(req.project_id) if req.project_id else get_default_project()
 
+    intent = _classify_intent(req.query)
+    retrieval_scope = "code_only" if intent == "technical" else "documents"
+
     critic_result = await retrieve_with_critic(
         req.query,
         department=department,
         top_k=project.rag_config.top_k_default,
         top_n=project.rag_config.top_n_default,
         collection_name=project.rag_config.collection_name,
+        retrieval_scope=retrieval_scope,
     )
     chunks = critic_result.selected.reranked
     sources = [

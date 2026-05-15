@@ -58,10 +58,40 @@ RETRY_REQUIRED_ITEMS = (
 )
 
 
+_TECHNICAL_KEYWORDS = {
+    "api", "jwt", "코드", "함수", "배포", "서버", "db", "데이터베이스", "쿼리", "오류",
+    "버그", "모듈", "패키지", "클래스", "메서드", "인터페이스", "스키마", "마이그레이션",
+    "도커", "쿠버네티스", "엔드포인트", "라이브러리", "프레임워크", "빌드", "디버그",
+    "로그", "환경변수", "인증", "토큰", "암호화", "sql", "rest", "컨테이너", "설정값",
+}
+_BUSINESS_KEYWORDS = {
+    "계약", "비용", "일정", "요구사항", "검토", "승인", "정책", "조직", "기획", "예산",
+    "납기", "sla", "도입", "제안", "입찰", "견적", "업체", "협력사", "담당자", "절차",
+    "규정", "지침", "감사", "보고서", "의사결정", "전략", "사업", "운영", "프로세스",
+}
+
+
+def _classify_intent(query: str) -> str:
+    lower = query.lower()
+    tech = sum(1 for kw in _TECHNICAL_KEYWORDS if kw in lower)
+    biz = sum(1 for kw in _BUSINESS_KEYWORDS if kw in lower)
+    if tech > biz:
+        return "technical"
+    if biz > tech:
+        return "business"
+    return "general"
+
+
 def _truncate_text(text: str, limit: int) -> str:
     if len(text) <= limit:
         return text
     return f"{text[:limit].rstrip()}\n...[근거 일부 생략]"
+
+
+_INTENT_CONTEXT = {
+    "technical": "이 질문은 기술/개발 맥락이다. 코드, API, 시스템 아키텍처, 기술 스펙 관점에서 구체적으로 답하라.",
+    "business": "이 질문은 실무/비즈니스 맥락이다. 일정, 비용, 정책, 조직, 프로세스 관점에서 실용적으로 답하라.",
+}
 
 
 def _build_messages(
@@ -71,8 +101,10 @@ def _build_messages(
         f"[출처: {_source_label(c)}]\n{_truncate_text(c['text'], chunk_text_limit)}"
         for c in chunks
     )
+    intent = _classify_intent(query)
+    intent_line = f"\n\n[질문 유형] {_INTENT_CONTEXT[intent]}" if intent in _INTENT_CONTEXT else ""
     return [
-        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "system", "content": SYSTEM_PROMPT + intent_line},
         {"role": "user", "content": f"참고 문서:\n{context}\n\n질문: {query} /no_think"},
     ]
 

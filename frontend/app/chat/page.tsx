@@ -41,6 +41,44 @@ interface Message {
   comparison?: ComparisonRun;
 }
 
+function parseContentBlocks(content: string): Array<{ type: "text" | "code"; content: string; lang?: string }> {
+  const blocks: Array<{ type: "text" | "code"; content: string; lang?: string }> = [];
+  const regex = /```(\w*)\n?([\s\S]*?)```/g;
+  let last = 0;
+  let match;
+  while ((match = regex.exec(content)) !== null) {
+    if (match.index > last) blocks.push({ type: "text", content: content.slice(last, match.index) });
+    blocks.push({ type: "code", content: match[2], lang: match[1] || undefined });
+    last = regex.lastIndex;
+  }
+  if (last < content.length) blocks.push({ type: "text", content: content.slice(last) });
+  return blocks;
+}
+
+function CodeBlock({ code, lang }: { code: string; lang?: string }) {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = () => {
+    navigator.clipboard.writeText(code).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+  return (
+    <div className="relative my-2 rounded-lg bg-gray-900 text-sm">
+      {lang && <span className="absolute top-2 left-3 text-xs text-gray-400">{lang}</span>}
+      <button
+        onClick={handleCopy}
+        className="absolute top-2 right-2 rounded px-2 py-0.5 text-xs bg-gray-700 hover:bg-gray-600 text-gray-200 transition"
+      >
+        {copied ? "복사됨 ✓" : "복사"}
+      </button>
+      <pre className="overflow-x-auto px-4 pt-8 pb-4 text-gray-100 font-mono text-xs leading-relaxed">
+        <code>{code}</code>
+      </pre>
+    </div>
+  );
+}
+
 function ChatPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -740,18 +778,27 @@ function ChatPage() {
                 renderComparison(msg.comparison)
               ) : (
                 <>
-                  <div
-                    className={`rounded-2xl px-4 py-3 whitespace-pre-wrap ${
-                      msg.role === "user"
-                        ? "bg-blue-600 text-white rounded-tr-sm"
-                        : "bg-white border shadow-sm rounded-tl-sm"
-                    }`}
-                  >
-                    {msg.content}
-                    {msg.streaming && (
-                      <span className="inline-block w-2 h-4 bg-gray-400 ml-1 animate-pulse rounded" />
-                    )}
-                  </div>
+                  {msg.role === "user" ? (
+                    <div className="rounded-2xl px-4 py-3 whitespace-pre-wrap bg-blue-600 text-white rounded-tr-sm">
+                      {msg.content}
+                      {msg.streaming && (
+                        <span className="inline-block w-2 h-4 bg-gray-400 ml-1 animate-pulse rounded" />
+                      )}
+                    </div>
+                  ) : (
+                    <div className="rounded-2xl px-4 py-3 bg-white border shadow-sm rounded-tl-sm">
+                      {parseContentBlocks(msg.content).map((block, i) =>
+                        block.type === "code" ? (
+                          <CodeBlock key={i} code={block.content} lang={block.lang} />
+                        ) : (
+                          <span key={i} className="whitespace-pre-wrap">{block.content}</span>
+                        )
+                      )}
+                      {msg.streaming && (
+                        <span className="inline-block w-2 h-4 bg-gray-400 ml-1 animate-pulse rounded" />
+                      )}
+                    </div>
+                  )}
                   {msg.agentMetadata && (
                     <>
                       <div className="mt-1 text-[11px] leading-5 text-gray-500">

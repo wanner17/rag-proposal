@@ -48,7 +48,7 @@ async def ensure_collection(collection_name: str | None = None):
 
 def _bm25_encode(text: str) -> SparseVector:
     # kiwipiepy 형태소 분석 기반 BM25 sparse 벡터
-    tokens = kiwi.tokenize(text)
+    tokens = kiwi.tokenize(text[:30_000])
     token_texts = [t.form for t in tokens if t.tag not in ("SF", "SP", "SS")]
     freq: dict[int, float] = {}
     for token in token_texts:
@@ -84,7 +84,7 @@ async def index_chunks(chunks: list[dict], collection_name: str | None = None):
     await client.upsert(collection_name=target_collection, points=points)
 
 
-RetrievalScope = Literal["documents", "source_code"]
+RetrievalScope = Literal["documents", "source_code", "code_only"]
 
 
 def _department_filter(department: str | None) -> Filter | None:
@@ -101,6 +101,12 @@ def _source_filter(project_slug: str) -> Filter:
             FieldCondition(key="source_kind", match=MatchValue(value="source_code")),
             FieldCondition(key="project_slug", match=MatchValue(value=project_slug)),
         ]
+    )
+
+
+def _code_only_filter() -> Filter:
+    return Filter(
+        must=[FieldCondition(key="source_kind", match=MatchValue(value="source_code"))]
     )
 
 
@@ -123,6 +129,8 @@ def _retrieval_filter(
         if not project_slug:
             raise ValueError("project_slug is required for source_code retrieval")
         return _source_filter(project_slug)
+    if retrieval_scope == "code_only":
+        return _code_only_filter()
     return _department_filter(department)
 
 

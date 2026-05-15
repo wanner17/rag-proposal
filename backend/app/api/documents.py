@@ -70,7 +70,7 @@ async def list_documents(
 ):
     project = get_project(project_id) if project_id else get_default_project()
     department_scope = resolve_department_scope(user, None)
-    chunks = await list_indexed_chunks(department_scope, collection_name=project.rag_config.collection_name)
+    chunks = await list_indexed_chunks(department_scope, collection_name=project.rag_config.collection_name, project_slug=project.slug)
     documents = _summarize_documents(chunks)
     return DocumentSearchResponse(found=bool(documents), documents=documents, hits=[])
 
@@ -79,11 +79,11 @@ async def list_documents(
 async def search_documents(req: DocumentSearchRequest, user: UserInfo = Depends(get_current_user)):
     project = get_project(req.project_id) if req.project_id else get_default_project()
     department_scope = resolve_department_scope(user, None)
-    all_chunks = await list_indexed_chunks(department_scope, collection_name=project.rag_config.collection_name)
+    all_chunks = await list_indexed_chunks(department_scope, collection_name=project.rag_config.collection_name, project_slug=project.slug)
     hits = [
         _search_hit(chunk)
         for chunk in await hybrid_search(
-            req.query, department_scope, top_k=req.top_k, collection_name=project.rag_config.collection_name
+            req.query, department_scope, top_k=req.top_k, collection_name=project.rag_config.collection_name, project_slug=project.slug
         )
     ]
     documents = _summarize_documents(all_chunks)
@@ -94,7 +94,7 @@ async def search_documents(req: DocumentSearchRequest, user: UserInfo = Depends(
 async def delete_document(file_name: str, project_id: str | None = None, user: UserInfo = Depends(get_current_user)):
     project = get_project(project_id) if project_id else get_default_project()
     department_scope = resolve_department_scope(user, None)
-    chunks = await list_indexed_chunks(department_scope, collection_name=project.rag_config.collection_name)
+    chunks = await list_indexed_chunks(department_scope, collection_name=project.rag_config.collection_name, project_slug=project.slug)
     matching_chunks = [chunk for chunk in chunks if chunk.get("file") == file_name]
 
     if not matching_chunks:
@@ -106,7 +106,7 @@ async def delete_document(file_name: str, project_id: str | None = None, user: U
             message="삭제할 수 있는 등록 문서를 찾지 못했습니다.",
         )
 
-    indexed_deleted = await delete_document_chunks(file_name, department_scope, collection_name=project.rag_config.collection_name)
+    indexed_deleted = await delete_document_chunks(file_name, department_scope, collection_name=project.rag_config.collection_name, project_slug=project.slug)
     source_path = (UPLOAD_DIR / file_name).resolve()
     source_deleted = False
     try:

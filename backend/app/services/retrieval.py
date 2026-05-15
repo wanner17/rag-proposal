@@ -139,10 +139,12 @@ def _retrieval_filter(
     return Filter(must=must) if must else None
 
 
-def _document_filter(file_name: str, department: str | None) -> Filter:
+def _document_filter(file_name: str, department: str | None, project_slug: str | None = None) -> Filter:
     must = [FieldCondition(key="file", match=MatchValue(value=file_name))]
     if department:
         must.append(FieldCondition(key="department", match=MatchValue(value=department)))
+    if project_slug:
+        must.append(FieldCondition(key="project_slug", match=MatchValue(value=project_slug)))
     return Filter(must=must)
 
 
@@ -190,12 +192,19 @@ async def list_indexed_chunks(
     department: str | None,
     limit: int = 500,
     collection_name: str | None = None,
+    project_slug: str | None = None,
 ) -> list[dict]:
     client = get_client()
     target_collection = collection_name or settings.QDRANT_COLLECTION
+    must = []
+    if project_slug:
+        must.append(FieldCondition(key="project_slug", match=MatchValue(value=project_slug)))
+    if department:
+        must.append(FieldCondition(key="department", match=MatchValue(value=department)))
+    scroll_filter = Filter(must=must) if must else None
     points, _ = await client.scroll(
         collection_name=target_collection,
-        scroll_filter=_department_filter(department),
+        scroll_filter=scroll_filter,
         limit=limit,
         with_payload=True,
         with_vectors=False,
@@ -207,10 +216,11 @@ async def delete_document_chunks(
     file_name: str,
     department: str | None,
     collection_name: str | None = None,
+    project_slug: str | None = None,
 ) -> bool:
     client = get_client()
     target_collection = collection_name or settings.QDRANT_COLLECTION
-    selector = FilterSelector(filter=_document_filter(file_name, department))
+    selector = FilterSelector(filter=_document_filter(file_name, department, project_slug))
     await client.delete(
         collection_name=target_collection,
         points_selector=selector,

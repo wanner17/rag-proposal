@@ -58,7 +58,6 @@ DEFAULT_SOURCE_INCLUDE_GLOBS = [
     "**/*.md",
     "**/*.json",
     "**/*.html",
-    "**/*.css",
     "**/*.txt",
     "**/*.sh",
 ]
@@ -109,6 +108,25 @@ DEFAULT_SOURCE_EXCLUDE_GLOBS = [
     "**/libs/**",
     "**/third_party/**",
     "**/webjars/**",
+    "src/main/webapp/html/egovframework/**",
+    "src/main/webapp/js/**",
+    "src/main/webapp/css/**",
+    "src/main/webapp/images/**",
+    "src/main/webapp/WEB-INF/lib/**",
+    "**/jquery/**",
+    "**/jquery-ui/**",
+    "**/bootstrap/**",
+    "**/ckeditor/**",
+    "**/tinymce/**",
+    "**/summernote/**",
+    "**/htmlarea/**",
+    "**/kendo*/**",
+    "**/jqgrid/**",
+    "**/videojs/**",
+    "**/plupload*/**",
+    "**/*.bak",
+    "**/*.old",
+    "**/*.log",
 ]
 
 

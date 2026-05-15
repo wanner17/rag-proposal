@@ -21,6 +21,7 @@ async def chat(req: ChatRequest, user: UserInfo = Depends(get_current_user)):
         top_k=project.rag_config.top_k_default,
         top_n=project.rag_config.top_n_default,
         collection_name=project.rag_config.collection_name,
+        project_slug=project.slug,
     )
     chunks = critic_result.selected.reranked
 
@@ -61,6 +62,7 @@ async def chat_stream(req: ChatRequest, user: UserInfo = Depends(get_current_use
         top_n=project.rag_config.top_n_default,
         collection_name=project.rag_config.collection_name,
         retrieval_scope=retrieval_scope,
+        project_slug=project.slug,
     )
     chunks = critic_result.selected.reranked
     sources = [

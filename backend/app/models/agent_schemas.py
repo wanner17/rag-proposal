@@ -5,6 +5,11 @@ from pydantic import BaseModel, Field
 from app.models.schemas import Source
 
 
+class ConversationMessage(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str = Field(..., min_length=1, max_length=4000)
+
+
 class AgentQueryRequest(BaseModel):
     query: str = Field(..., min_length=1, max_length=1000)
     project_id: str | None = None
@@ -12,6 +17,7 @@ class AgentQueryRequest(BaseModel):
     retrieval_scope: Literal["documents", "source_code"] = "documents"
     top_k: int | None = Field(default=None, ge=1, le=50)
     top_n: int | None = Field(default=None, ge=1, le=10)
+    conversation_history: list[ConversationMessage] = Field(default_factory=list)
 
 
 class AgentWorkflowStep(BaseModel):

@@ -1,3 +1,7 @@
+import logging
+import shutil
+from pathlib import Path
+
 from fastapi import APIRouter, Depends, Response, status
 
 from app.core.auth import require_admin
@@ -59,6 +63,13 @@ async def delete_project_api(project_id: str, _: UserInfo = Depends(require_admi
     state_repo = SourceIndexStateRepository()
     state_repo.delete_file_records(project.slug)
     state_repo.delete_project_state(project.slug)
+    if project.source_config.repo_root:
+        repo_path = Path(project.source_config.repo_root)
+        if repo_path.exists():
+            try:
+                shutil.rmtree(repo_path)
+            except Exception:
+                logging.getLogger(__name__).warning("repo_root 삭제 실패: %s", repo_path)
 
 
 @router.get("/{project_id}/export")

@@ -95,7 +95,10 @@ _INTENT_CONTEXT = {
 
 
 def _build_messages(
-    query: str, chunks: list[dict], chunk_text_limit: int = CHUNK_TEXT_LIMIT
+    query: str,
+    chunks: list[dict],
+    chunk_text_limit: int = CHUNK_TEXT_LIMIT,
+    history: list[dict] | None = None,
 ) -> list[dict]:
     context = "\n\n---\n\n".join(
         f"[출처: {_source_label(c)}]\n{_truncate_text(c['text'], chunk_text_limit)}"
@@ -103,10 +106,11 @@ def _build_messages(
     )
     intent = _classify_intent(query)
     intent_line = f"\n\n[질문 유형] {_INTENT_CONTEXT[intent]}" if intent in _INTENT_CONTEXT else ""
-    return [
-        {"role": "system", "content": SYSTEM_PROMPT + intent_line},
-        {"role": "user", "content": f"참고 문서:\n{context}\n\n질문: {query} /no_think"},
-    ]
+    messages: list[dict] = [{"role": "system", "content": SYSTEM_PROMPT + intent_line}]
+    for turn in (history or [])[-6:]:
+        messages.append({"role": turn["role"], "content": turn["content"]})
+    messages.append({"role": "user", "content": f"참고 문서:\n{context}\n\n질문: {query} /no_think"})
+    return messages
 
 
 def _source_label(chunk: dict) -> str:
@@ -197,12 +201,13 @@ async def _iter_stream_tokens(
     chunks: list[dict],
     params: dict | None = None,
     chunk_text_limit: int = CHUNK_TEXT_LIMIT,
+    history: list[dict] | None = None,
 ) -> AsyncGenerator[str, None]:
     async with client.stream(
         "POST",
         f"{settings.LLM_HOST}/chat/completions",
         json={
-            "messages": _build_messages(query, chunks, chunk_text_limit),
+            "messages": _build_messages(query, chunks, chunk_text_limit, history),
             "stream": True,
             **(params or LLM_PARAMS),
         },
@@ -262,7 +267,9 @@ async def _generate_from_compact_stream(query: str, chunks: list[dict]) -> str:
         return LLM_UNAVAILABLE_MESSAGE
 
 
-async def generate_tokens(query: str, chunks: list[dict]) -> AsyncGenerator[str, None]:
+async def generate_tokens(
+    query: str, chunks: list[dict], history: list[dict] | None = None
+) -> AsyncGenerator[str, None]:
     if not chunks:
         yield "관련 문서를 찾지 못했습니다."
         return
@@ -274,7 +281,7 @@ async def generate_tokens(query: str, chunks: list[dict]) -> AsyncGenerator[str,
         tokens = []
         try:
             async with httpx.AsyncClient(timeout=180.0) as client:
-                async for token in _iter_stream_tokens(client, query, chunks):
+                async for token in _iter_stream_tokens(client, query, chunks, history=history):
                     yielded = True
                     tokens.append(token)
                     yield token
@@ -341,7 +348,7 @@ async def _retry_incomplete_answer(query: str, chunks: list[dict]) -> AsyncGener
         yield token
 
 
-async def generate(query: str, chunks: list[dict]) -> str:
+async def generate(query: str, chunks: list[dict], history: list[dict] | None = None) -> str:
     if not chunks:
         return "관련 문서를 찾지 못했습니다."
 
@@ -349,7 +356,7 @@ async def generate(query: str, chunks: list[dict]) -> str:
         async with httpx.AsyncClient(timeout=180.0) as client:
             resp = await client.post(
                 f"{settings.LLM_HOST}/chat/completions",
-                json={"messages": _build_messages(query, chunks), **LLM_PARAMS},
+                json={"messages": _build_messages(query, chunks, history=history), **LLM_PARAMS},
             )
             resp.raise_for_status()
             choice = resp.json()["choices"][0]

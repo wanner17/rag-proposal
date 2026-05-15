@@ -17,6 +17,7 @@ class AgentWorkflowInput:
     top_k: int
     top_n: int
     retrieval_scope: Literal["documents", "source_code"] = "documents"
+    conversation_history: tuple[dict, ...] = ()
 
 
 @dataclass

@@ -4,7 +4,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import {
   agentStream,
   AgentUnavailableError,
-  chatStream,
   RetrievalScope,
   UnauthorizedError,
   type AgentWorkflowMetadata,
@@ -12,33 +11,15 @@ import {
 } from "@/lib/api";
 import { listProjects, type Project } from "@/lib/projects";
 import SourceCard from "@/components/SourceCard";
-
-type ChatMode = "stream" | "agent" | "compare";
-type ComparisonSideKey = "stream" | "agent";
-
-interface ComparisonSide {
-  content: string;
-  sources: Source[];
-  loading: boolean;
-  error: string;
-  agentMetadata?: AgentWorkflowMetadata;
-}
-
-interface ComparisonRun {
-  runId: number;
-  query: string;
-  stream: ComparisonSide;
-  agent: ComparisonSide;
-}
+import AgentThinkingPanel, { type AgentStep } from "@/components/AgentThinkingPanel";
 
 interface Message {
   role: "user" | "assistant";
   content: string;
   sources?: Source[];
   streaming?: boolean;
-  mode?: ChatMode;
   agentMetadata?: AgentWorkflowMetadata;
-  comparison?: ComparisonRun;
+  agentSteps?: AgentStep[];
 }
 
 function parseContentBlocks(content: string): Array<{ type: "text" | "code"; content: string; lang?: string }> {
@@ -87,12 +68,10 @@ function ChatPage() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [authError, setAuthError] = useState("");
-  const [chatMode, setChatMode] = useState<ChatMode>("stream");
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
   const activeRunRef = useRef(0);
-  const comparisonFinishedRef = useRef(new Map<number, Set<ComparisonSideKey>>());
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -107,7 +86,6 @@ function ChatPage() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!input.trim() || loading) return;
@@ -115,7 +93,6 @@ function ChatPage() {
     const query = input.trim();
     const submittedProjectId = selectedProjectId || undefined;
     const submittedScope: RetrievalScope = "documents";
-    const submittedMode = chatMode;
     const runId = activeRunRef.current + 1;
     activeRunRef.current = runId;
 
@@ -128,99 +105,25 @@ function ChatPage() {
       setAuthError("로그인이 만료되었습니다. 다시 로그인해 주세요.");
       setMessages((prev) => [
         ...prev,
-        {
-          role: "assistant",
-          content: "로그인이 만료되었습니다. 다시 로그인해 주세요.",
-          streaming: false,
-          mode: submittedMode,
-        },
+        { role: "assistant", content: "로그인이 만료되었습니다. 다시 로그인해 주세요.", streaming: false },
       ]);
       setLoading(false);
       router.push("/login");
       return;
     }
 
-    if (submittedMode === "compare") {
-      comparisonFinishedRef.current.set(runId, new Set());
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content: "",
-          mode: "compare",
-          comparison: createComparisonRun(runId, query),
-        },
-      ]);
-      void runComparison(query, token, runId);
-      return;
-    }
-
     setMessages((prev) => [
       ...prev,
-      { role: "assistant", content: "", streaming: true, mode: submittedMode },
+      { role: "assistant", content: "", streaming: true, agentSteps: [] },
     ]);
 
-    try {
-      if (submittedMode === "agent") {
-        await agentStream(
-          query,
-          token,
-          (sources) => {
-            if (!isActiveRun(runId)) return;
-            setMessages((prev) => {
-              const next = [...prev];
-              next[next.length - 1] = { ...next[next.length - 1], sources };
-              return next;
-            });
-          },
-          (tok) => {
-            if (!isActiveRun(runId)) return;
-            setMessages((prev) => {
-              const next = [...prev];
-              next[next.length - 1] = {
-                ...next[next.length - 1],
-                content: next[next.length - 1].content + tok,
-              };
-              return next;
-            });
-          },
-          (metadata) => {
-            if (!isActiveRun(runId)) return;
-            setMessages((prev) => {
-              const next = [...prev];
-              next[next.length - 1] = { ...next[next.length - 1], agentMetadata: metadata };
-              return next;
-            });
-          },
-          () => {
-            if (!isActiveRun(runId)) return;
-            setMessages((prev) => {
-              const next = [...prev];
-              next[next.length - 1] = { ...next[next.length - 1], streaming: false };
-              return next;
-            });
-            setLoading(false);
-          },
-          (notice) => {
-            if (!isActiveRun(runId)) return;
-            setMessages((prev) => {
-              const next = [...prev];
-              next[next.length - 1] = {
-                ...next[next.length - 1],
-                content: next[next.length - 1].content + notice,
-              };
-              return next;
-            });
-          },
-          {
-            project_id: submittedProjectId,
-            retrieval_scope: submittedScope,
-          }
-        );
-        return;
-      }
+    const history = messages
+      .filter((m) => !m.streaming && m.content)
+      .slice(-6)
+      .map((m) => ({ role: m.role, content: m.content }));
 
-      await chatStream(
+    try {
+      await agentStream(
         query,
         token,
         (sources) => {
@@ -242,11 +145,23 @@ function ChatPage() {
             return next;
           });
         },
+        (metadata) => {
+          if (!isActiveRun(runId)) return;
+          setMessages((prev) => {
+            const next = [...prev];
+            next[next.length - 1] = { ...next[next.length - 1], agentMetadata: metadata };
+            return next;
+          });
+        },
         () => {
           if (!isActiveRun(runId)) return;
           setMessages((prev) => {
             const next = [...prev];
-            next[next.length - 1] = { ...next[next.length - 1], streaming: false };
+            const msg = next[next.length - 1];
+            const steps = (msg.agentSteps ?? []).map((s) =>
+              s.status === "running" ? { ...s, status: "done" as const } : s
+            );
+            next[next.length - 1] = { ...msg, streaming: false, agentSteps: steps };
             return next;
           });
           setLoading(false);
@@ -262,20 +177,40 @@ function ChatPage() {
             return next;
           });
         },
-        { project_id: submittedProjectId }
+        { project_id: submittedProjectId, retrieval_scope: submittedScope, conversation_history: history },
+        (name, index) => {
+          if (!isActiveRun(runId)) return;
+          setMessages((prev) => {
+            const next = [...prev];
+            const msg = next[next.length - 1];
+            const steps = [...(msg.agentSteps ?? [])];
+            steps[index] = { name, index, status: "running" };
+            next[next.length - 1] = { ...msg, agentSteps: steps };
+            return next;
+          });
+        },
+        (name, index, durationMs) => {
+          if (!isActiveRun(runId)) return;
+          setMessages((prev) => {
+            const next = [...prev];
+            const msg = next[next.length - 1];
+            const steps = [...(msg.agentSteps ?? [])];
+            steps[index] = { name, index, status: "done", durationMs };
+            next[next.length - 1] = { ...msg, agentSteps: steps };
+            return next;
+          });
+        }
       );
     } catch (err) {
       if (!isActiveRun(runId)) return;
       if (err instanceof UnauthorizedError) {
-        handleUnauthorized(runId, err.message, submittedMode);
+        handleUnauthorized(runId, err.message);
         return;
       }
-
       setMessages((prev) => {
         const next = [...prev];
         next[next.length - 1] = {
           role: "assistant",
-          mode: submittedMode,
           content:
             err instanceof AgentUnavailableError
               ? err.message
@@ -310,217 +245,22 @@ function ChatPage() {
     }
   }
 
-  function createComparisonRun(runId: number, query: string): ComparisonRun {
-    return {
-      runId,
-      query,
-      stream: createComparisonSide(),
-      agent: createComparisonSide(),
-    };
-  }
-
-  function createComparisonSide(): ComparisonSide {
-    return {
-      content: "",
-      sources: [],
-      loading: true,
-      error: "",
-    };
-  }
-
-  function handleUnauthorized(runId: number, message: string, mode: ChatMode) {
+  function handleUnauthorized(runId: number, message: string) {
     if (!isActiveRun(runId)) return;
     activeRunRef.current = runId + 1;
     localStorage.removeItem("token");
     setAuthError(message);
     setMessages((prev) => {
-      if (mode !== "compare") {
-        const next = [...prev];
-        next[next.length - 1] = {
-          role: "assistant",
-          content: "로그인이 만료되었습니다. 다시 로그인해 주세요.",
-          streaming: false,
-          mode,
-        };
-        return next;
-      }
-
-      return prev.map((msg) => {
-        if (msg.comparison?.runId !== runId) return msg;
-        return {
-          ...msg,
-          comparison: {
-            ...msg.comparison,
-            stream: {
-              ...msg.comparison.stream,
-              loading: false,
-              error: "로그인이 만료되었습니다. 다시 로그인해 주세요.",
-            },
-            agent: {
-              ...msg.comparison.agent,
-              loading: false,
-              error: "로그인이 만료되었습니다. 다시 로그인해 주세요.",
-            },
-          },
-        };
-      });
+      const next = [...prev];
+      next[next.length - 1] = {
+        role: "assistant",
+        content: "로그인이 만료되었습니다. 다시 로그인해 주세요.",
+        streaming: false,
+      };
+      return next;
     });
     setLoading(false);
     router.push("/login");
-  }
-
-  async function runComparison(query: string, token: string, runId: number) {
-    await runComparisonStream(query, token, runId);
-    if (!isActiveRun(runId)) return;
-    await runComparisonAgent(query, token, runId);
-  }
-
-  async function runComparisonStream(query: string, token: string, runId: number) {
-    try {
-      await chatStream(
-        query,
-        token,
-        (sources) => {
-          if (!isActiveRun(runId)) return;
-          updateComparisonSide(runId, "stream", { sources });
-        },
-        (tok) => {
-          if (!isActiveRun(runId)) return;
-          updateComparisonSide(runId, "stream", (side) => ({
-            content: side.content + tok,
-          }));
-        },
-        () => {
-          if (!isActiveRun(runId)) return;
-          finishComparisonSide(runId, "stream", { loading: false });
-        },
-        (notice) => {
-          if (!isActiveRun(runId)) return;
-          updateComparisonSide(runId, "stream", (side) => ({
-            content: `${side.content}${notice}`,
-          }));
-        },
-        { project_id: selectedProjectId || undefined }
-      );
-    } catch (err) {
-      if (!isActiveRun(runId)) return;
-      if (err instanceof UnauthorizedError) {
-        handleUnauthorized(runId, err.message, "compare");
-        return;
-      }
-
-      finishComparisonSide(runId, "stream", {
-        loading: false,
-        error: "오류가 발생했습니다. 다시 시도해주세요.",
-      });
-    }
-  }
-
-  async function runComparisonAgent(query: string, token: string, runId: number) {
-    try {
-      await agentStream(
-        query,
-        token,
-        (sources) => {
-          if (!isActiveRun(runId)) return;
-          updateComparisonSide(runId, "agent", { sources });
-        },
-        (tok) => {
-          if (!isActiveRun(runId)) return;
-          updateComparisonSide(runId, "agent", (side) => ({
-            content: side.content + tok,
-          }));
-        },
-        (metadata) => {
-          if (!isActiveRun(runId)) return;
-          updateComparisonSide(runId, "agent", { agentMetadata: metadata });
-        },
-        () => {
-          if (!isActiveRun(runId)) return;
-          finishComparisonSide(runId, "agent", { loading: false });
-        },
-        (notice) => {
-          if (!isActiveRun(runId)) return;
-          updateComparisonSide(runId, "agent", (side) => ({
-            content: `${side.content}${notice}`,
-          }));
-        },
-        {
-          project_id: selectedProjectId || undefined,
-          retrieval_scope: "documents",
-        }
-      );
-    } catch (err) {
-      if (!isActiveRun(runId)) return;
-      if (err instanceof UnauthorizedError) {
-        handleUnauthorized(runId, err.message, "compare");
-        return;
-      }
-
-      finishComparisonSide(runId, "agent", {
-        loading: false,
-        error:
-          err instanceof AgentUnavailableError
-            ? err.message
-            : "오류가 발생했습니다. 다시 시도해주세요.",
-      });
-    }
-  }
-
-  function updateComparisonSide(
-    runId: number,
-    sideKey: ComparisonSideKey,
-    patch: Partial<ComparisonSide> | ((side: ComparisonSide) => Partial<ComparisonSide>)
-  ) {
-    setMessages((prev) =>
-      prev.map((msg) => {
-        if (msg.comparison?.runId !== runId) return msg;
-        const currentSide = msg.comparison[sideKey];
-        const nextPatch = typeof patch === "function" ? patch(currentSide) : patch;
-        return {
-          ...msg,
-          comparison: {
-            ...msg.comparison,
-            [sideKey]: {
-              ...currentSide,
-              ...nextPatch,
-            },
-          },
-        };
-      })
-    );
-  }
-
-  function finishComparisonSide(
-    runId: number,
-    sideKey: ComparisonSideKey,
-    patch: Partial<ComparisonSide>
-  ) {
-    setMessages((prev) =>
-      prev.map((msg) => {
-        if (msg.comparison?.runId !== runId) return msg;
-        const currentSide = msg.comparison[sideKey];
-        const updatedComparison = {
-          ...msg.comparison,
-          [sideKey]: {
-            ...currentSide,
-            ...patch,
-          },
-        };
-        return {
-          ...msg,
-          comparison: updatedComparison,
-        };
-      })
-    );
-
-    const finishedSides = comparisonFinishedRef.current.get(runId) ?? new Set<ComparisonSideKey>();
-    finishedSides.add(sideKey);
-    comparisonFinishedRef.current.set(runId, finishedSides);
-    if (finishedSides.size === 2 && isActiveRun(runId)) {
-      setLoading(false);
-      comparisonFinishedRef.current.delete(runId);
-    }
   }
 
   function sourceKey(source: Source) {
@@ -531,25 +271,6 @@ function ChatPage() {
       );
     }
     return source.point_id ?? `${source.file}:${source.page}:${source.section}`;
-  }
-
-  function sourceLabel(source: Source) {
-    if (source.source_kind === "source_code") {
-      const lineRange =
-        source.start_line != null && source.end_line != null
-          ? `:${source.start_line}-${source.end_line}`
-          : "";
-      return `${source.relative_path ?? "source"}${lineRange}`;
-    }
-    const section = source.section ? ` · ${source.section}` : "";
-    return `${source.file ?? "document"} p.${source.page ?? "-"}${section}`;
-  }
-
-  function getSourceOverlap(streamSources: Source[], agentSources: Source[]) {
-    const agentByKey = new Map(agentSources.map((source) => [sourceKey(source), source]));
-    return streamSources
-      .filter((source) => agentByKey.has(sourceKey(source)))
-      .map((source) => sourceLabel(source));
   }
 
   function formatAgentMetadata(metadata: AgentWorkflowMetadata) {
@@ -619,92 +340,6 @@ function ChatPage() {
     );
   }
 
-  function renderComparisonSide(
-    title: string,
-    side: ComparisonSide,
-    sideKey: ComparisonSideKey
-  ) {
-    const status = side.loading ? "생성 중" : side.error ? "오류" : "완료";
-    return (
-      <section className="min-w-0 rounded-xl border bg-white p-4 shadow-sm">
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <h2 className="text-sm font-semibold text-gray-800">{title}</h2>
-          <span
-            className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ${
-              side.error
-                ? "bg-red-50 text-red-600"
-                : side.loading
-                  ? "bg-blue-50 text-blue-700"
-                  : "bg-emerald-50 text-emerald-700"
-            }`}
-          >
-            {status}
-          </span>
-        </div>
-        <div className="min-h-24 whitespace-pre-wrap rounded-lg bg-gray-50 px-3 py-2 text-sm leading-6 text-gray-800">
-          {side.error ||
-            side.content ||
-            (side.loading ? "답변을 생성하고 있습니다..." : "응답이 없습니다.")}
-          {side.loading && !side.error && (
-            <span className="ml-1 inline-block h-4 w-2 animate-pulse rounded bg-gray-400 align-middle" />
-          )}
-        </div>
-        {sideKey === "agent" && side.agentMetadata && (
-          <>
-            <div className="mt-2 text-[11px] leading-5 text-gray-500">
-              {formatAgentMetadata(side.agentMetadata)}
-            </div>
-            {renderAnswerQualityReport(side.agentMetadata)}
-          </>
-        )}
-        <div className="mt-3 text-xs font-medium text-gray-600">
-          출처 {side.sources.length}개
-        </div>
-        {side.sources.length > 0 && (
-          <div className="mt-2 space-y-1">
-            {side.sources.map((src, j) => (
-              <SourceCard key={`${sourceKey(src)}-${j}`} source={src} index={j} />
-            ))}
-          </div>
-        )}
-      </section>
-    );
-  }
-
-  function renderComparison(comparison: ComparisonRun) {
-    const overlap = getSourceOverlap(comparison.stream.sources, comparison.agent.sources);
-    const visibleOverlap = overlap.slice(0, 3);
-    const remainingOverlap = overlap.length - visibleOverlap.length;
-
-    return (
-      <div className="w-full max-w-5xl">
-        <div className="mb-3 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                Compare
-              </div>
-              <div className="text-sm font-medium text-gray-800">{comparison.query}</div>
-            </div>
-            <div className="text-xs text-gray-600">
-              Basic {comparison.stream.sources.length} · Agent {comparison.agent.sources.length} · 겹친 출처 {overlap.length}
-            </div>
-          </div>
-          {visibleOverlap.length > 0 && (
-            <div className="mt-2 text-xs leading-5 text-gray-500">
-              공통: {visibleOverlap.join(", ")}
-              {remainingOverlap > 0 ? ` 외 ${remainingOverlap}개` : ""}
-            </div>
-          )}
-        </div>
-        <div className="grid gap-4 lg:grid-cols-2">
-          {renderComparisonSide("Basic · /api/chat/stream", comparison.stream, "stream")}
-          {renderComparisonSide("Agent · /api/agent/stream", comparison.agent, "agent")}
-        </div>
-      </div>
-    );
-  }
-
   const selectedProject = projects.find((project) => project.id === selectedProjectId) ?? null;
 
   return (
@@ -717,44 +352,16 @@ function ChatPage() {
           )}
         </div>
         <div className="flex items-center gap-3">
-          <div className="flex items-center rounded-lg border border-gray-200 bg-gray-50 p-1 text-xs font-medium">
-            <button
-              type="button"
-              disabled={loading}
-              onClick={() => setChatMode("stream")}
-              className={`rounded-md px-3 py-1.5 transition ${
-                chatMode === "stream"
-                  ? "bg-white text-blue-700 shadow-sm"
-                  : "text-gray-500 hover:text-gray-700"
-              } disabled:opacity-50`}
-            >
-              기본
-            </button>
-            <button
-              type="button"
-              disabled={loading}
-              onClick={() => setChatMode("agent")}
-              className={`rounded-md px-3 py-1.5 transition ${
-                chatMode === "agent"
-                  ? "bg-white text-blue-700 shadow-sm"
-                  : "text-gray-500 hover:text-gray-700"
-              } disabled:opacity-50`}
-            >
-              Agent
-            </button>
-            <button
-              type="button"
-              disabled={loading}
-              onClick={() => setChatMode("compare")}
-              className={`rounded-md px-3 py-1.5 transition ${
-                chatMode === "compare"
-                  ? "bg-white text-blue-700 shadow-sm"
-                  : "text-gray-500 hover:text-gray-700"
-              } disabled:opacity-50`}
-            >
-              Compare
-            </button>
-          </div>
+          <select
+            value={selectedProjectId}
+            onChange={(e) => setSelectedProjectId(e.target.value)}
+            disabled={loading}
+            className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+          >
+            {projects.map((p) => (
+              <option key={p.id} value={p.id}>{p.name}</option>
+            ))}
+          </select>
         </div>
       </header>
       {authError && (
@@ -762,7 +369,6 @@ function ChatPage() {
           {authError}
         </div>
       )}
-
 
       <main className="flex-1 space-y-6 overflow-y-auto px-6 py-4">
         {messages.length === 0 && (
@@ -773,32 +379,28 @@ function ChatPage() {
         )}
         {messages.map((msg, i) => (
           <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-            <div className={`${msg.comparison ? "w-full" : "max-w-2xl"} ${msg.role === "user" ? "order-2" : ""}`}>
-              {msg.comparison ? (
-                renderComparison(msg.comparison)
+            <div className={`max-w-2xl ${msg.role === "user" ? "order-2" : ""}`}>
+              {msg.role === "user" ? (
+                <div className="rounded-2xl px-4 py-3 whitespace-pre-wrap bg-blue-600 text-white rounded-tr-sm">
+                  {msg.content}
+                </div>
               ) : (
                 <>
-                  {msg.role === "user" ? (
-                    <div className="rounded-2xl px-4 py-3 whitespace-pre-wrap bg-blue-600 text-white rounded-tr-sm">
-                      {msg.content}
-                      {msg.streaming && (
-                        <span className="inline-block w-2 h-4 bg-gray-400 ml-1 animate-pulse rounded" />
-                      )}
-                    </div>
-                  ) : (
-                    <div className="rounded-2xl px-4 py-3 bg-white border shadow-sm rounded-tl-sm">
-                      {parseContentBlocks(msg.content).map((block, i) =>
-                        block.type === "code" ? (
-                          <CodeBlock key={i} code={block.content} lang={block.lang} />
-                        ) : (
-                          <span key={i} className="whitespace-pre-wrap">{block.content}</span>
-                        )
-                      )}
-                      {msg.streaming && (
-                        <span className="inline-block w-2 h-4 bg-gray-400 ml-1 animate-pulse rounded" />
-                      )}
-                    </div>
+                  {msg.agentSteps && msg.agentSteps.length > 0 && (
+                    <AgentThinkingPanel steps={msg.agentSteps} isStreaming={!!msg.streaming} />
                   )}
+                  <div className="rounded-2xl px-4 py-3 bg-white border shadow-sm rounded-tl-sm">
+                    {parseContentBlocks(msg.content).map((block, j) =>
+                      block.type === "code" ? (
+                        <CodeBlock key={j} code={block.content} lang={block.lang} />
+                      ) : (
+                        <span key={j} className="whitespace-pre-wrap">{block.content}</span>
+                      )
+                    )}
+                    {msg.streaming && (
+                      <span className="inline-block w-2 h-4 bg-gray-400 ml-1 animate-pulse rounded" />
+                    )}
+                  </div>
                   {msg.agentMetadata && (
                     <>
                       <div className="mt-1 text-[11px] leading-5 text-gray-500">
@@ -810,7 +412,7 @@ function ChatPage() {
                   {msg.sources && msg.sources.length > 0 && (
                     <div className="mt-2 space-y-1">
                       {msg.sources.map((src, j) => (
-                        <SourceCard key={j} source={src} index={j} />
+                        <SourceCard key={`${sourceKey(src)}-${j}`} source={src} index={j} />
                       ))}
                     </div>
                   )}

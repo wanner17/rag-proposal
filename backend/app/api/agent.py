@@ -43,6 +43,7 @@ async def query_agent(req: AgentQueryRequest, user: UserInfo = Depends(get_curre
             top_k=req.top_k or project.rag_config.top_k_default,
             top_n=req.top_n or project.rag_config.top_n_default,
             retrieval_scope=req.retrieval_scope,
+            conversation_history=tuple(m.model_dump() for m in req.conversation_history),
         )
     )
     return AgentQueryResponse(
@@ -99,6 +100,7 @@ async def stream_agent(req: AgentQueryRequest, user: UserInfo = Depends(get_curr
         top_k=req.top_k or project.rag_config.top_k_default,
         top_n=req.top_n or project.rag_config.top_n_default,
         retrieval_scope=req.retrieval_scope,
+        conversation_history=tuple(m.model_dump() for m in req.conversation_history),
     )
 
     async def event_stream():

@@ -35,6 +35,7 @@ class _AgentGraphState(TypedDict):
     graph_run_id: str
     project_id: str
     project_slug: str
+    conversation_history: list[dict]
     answer: NotRequired[str]
     found: NotRequired[bool]
     sources: NotRequired[list[Source]]
@@ -56,6 +57,7 @@ async def run_agent_query(workflow_input: AgentWorkflowInput) -> AgentWorkflowRe
         "graph_run_id": str(uuid4()),
         "project_id": workflow_input.project_id,
         "project_slug": workflow_input.project_slug,
+        "conversation_history": list(workflow_input.conversation_history),
         "steps": [],
     }
     state = await graph.ainvoke(initial_state)
@@ -88,15 +90,26 @@ async def stream_agent_query(
         "graph_run_id": str(uuid4()),
         "project_id": workflow_input.project_id,
         "project_slug": workflow_input.project_slug,
+        "conversation_history": list(workflow_input.conversation_history),
         "steps": [],
     }
 
+    yield {"step_start": {"name": "prepare_context", "index": 0}}
+    t = perf_counter()
     state.update(await _prepare_context(state))
+    yield {"step_end": {"name": "prepare_context", "index": 0, "duration_ms": round((perf_counter() - t) * 1000, 1)}}
+
+    yield {"step_start": {"name": "retrieve_evidence", "index": 1}}
+    t = perf_counter()
     state.update(await _retrieve_evidence(state))
+    yield {"step_end": {"name": "retrieve_evidence", "index": 1, "duration_ms": round((perf_counter() - t) * 1000, 1)}}
 
     chunks = state.get("chunks", [])
     if not chunks:
+        yield {"step_start": {"name": "finalize_response", "index": 4}}
+        t = perf_counter()
         state.update(await _finalize_response(state))
+        yield {"step_end": {"name": "finalize_response", "index": 4, "duration_ms": round((perf_counter() - t) * 1000, 1)}}
         yield {"sources": []}
         yield {"token": state["answer"]}
         yield {"metadata": _metadata_from_state(state)}
@@ -105,12 +118,13 @@ async def stream_agent_query(
     sources = [_source_from_chunk(chunk) for chunk in chunks]
     yield {"sources": sources}
 
+    yield {"step_start": {"name": "generate_answer", "index": 2}}
     started = perf_counter()
     tokens: list[str] = []
-    async for token in generate_tokens(state["query"], chunks):
+    async for token in generate_tokens(state["query"], chunks, history=state.get("conversation_history")):
         tokens.append(token)
         yield {"token": token}
-
+    gen_duration = round((perf_counter() - started) * 1000, 1)
     state.update(
         {
             "answer": "".join(tokens),
@@ -120,8 +134,18 @@ async def stream_agent_query(
             + [_step("generate_answer", started, source_count=len(sources), streamed=True)],
         }
     )
+    yield {"step_end": {"name": "generate_answer", "index": 2, "duration_ms": gen_duration}}
+
+    yield {"step_start": {"name": "review_answer_quality", "index": 3}}
+    t = perf_counter()
     state.update(await _review_answer_quality(state))
+    yield {"step_end": {"name": "review_answer_quality", "index": 3, "duration_ms": round((perf_counter() - t) * 1000, 1)}}
+
+    yield {"step_start": {"name": "finalize_response", "index": 4}}
+    t = perf_counter()
     state.update(await _finalize_response(state))
+    yield {"step_end": {"name": "finalize_response", "index": 4, "duration_ms": round((perf_counter() - t) * 1000, 1)}}
+
     yield {"metadata": _metadata_from_state(state)}
 
 
@@ -217,7 +241,7 @@ async def _retrieve_evidence(state: _AgentGraphState) -> dict[str, Any]:
 async def _generate_answer(state: _AgentGraphState) -> dict[str, Any]:
     started = perf_counter()
     chunks = state.get("chunks", [])
-    answer = await generate(state["query"], chunks)
+    answer = await generate(state["query"], chunks, history=state.get("conversation_history"))
     sources = [_source_from_chunk(chunk) for chunk in chunks]
     step = _step("generate_answer", started, source_count=len(sources))
     return {

@@ -86,7 +86,9 @@ export async function agentStream(
   onMetadata: (metadata: AgentWorkflowMetadata) => void,
   onDone: () => void,
   onRetry?: (notice: string) => void,
-  options?: AgentQueryOptions
+  options?: AgentQueryOptions,
+  onStepStart?: (name: string, index: number) => void,
+  onStepEnd?: (name: string, index: number, durationMs: number) => void
 ) {
   const res = await fetch(`${API_BASE}/agent/stream`, {
     method: "POST",
@@ -115,6 +117,8 @@ export async function agentStream(
     if (data.sources) onSource(data.sources);
     if (data.token) handleStreamToken(data.token, onToken, onRetry);
     if (data.metadata) onMetadata(data.metadata);
+    if (data.step_start) onStepStart?.(data.step_start.name, data.step_start.index);
+    if (data.step_end) onStepEnd?.(data.step_end.name, data.step_end.index, data.step_end.duration_ms);
     return false;
   };
 
@@ -215,9 +219,15 @@ export async function deleteDocument(file: string, token: string, projectId?: st
 
 export type RetrievalScope = "documents" | "source_code";
 
+export interface ConversationTurn {
+  role: "user" | "assistant";
+  content: string;
+}
+
 export interface AgentQueryOptions {
   project_id?: string;
   retrieval_scope?: RetrievalScope;
+  conversation_history?: ConversationTurn[];
 }
 
 export interface Source {

@@ -143,7 +143,7 @@ def chunk_source_file(
     chunks: list[dict] = []
     for start_index in range(0, len(lines), max_lines):
         chunk_lines = lines[start_index : start_index + max_lines]
-        chunk_text = "\n".join(chunk_lines).strip()[:50_000]
+        chunk_text = "\n".join(chunk_lines).strip()[:8_000]
         if not chunk_text:
             continue
         start_line = start_index + 1

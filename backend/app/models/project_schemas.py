@@ -99,6 +99,16 @@ DEFAULT_SOURCE_EXCLUDE_GLOBS = [
     "*.map",
     "package-lock.json",
     "yarn.lock",
+    "src/main/webapp/assets/**",
+    "src/main/webapp/vendor/**",
+    "src/main/webapp/static/**",
+    "**/assets/**",
+    "**/vendor/**",
+    "**/static/**",
+    "**/lib/**",
+    "**/libs/**",
+    "**/third_party/**",
+    "**/webjars/**",
 ]
 
 

@@ -29,7 +29,9 @@ function UploadPage() {
     if (!token) { router.push("/login"); return; }
     listProjects(token)
       .then((list) => {
-        const found = projectSlug ? list.find((p) => p.slug === projectSlug) : list[0];
+        const found = projectSlug
+          ? list.find((p) => p.slug === projectSlug)
+          : list.find((p) => p.slug === "proposal-default") ?? list[0];
         if (found) setProject(found);
       })
       .catch(() => {});

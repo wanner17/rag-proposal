@@ -191,26 +191,13 @@ def _looks_incomplete_answer(answer: str, query: str | None = None) -> bool:
     normalized = answer.strip()
     if not normalized:
         return True
-    required_count = _requested_item_count(query) if query else 3
-    numbered_count = sum(
-        1
-        for index in range(1, required_count + 1)
-        for marker in (f"{index}.", f"{index})")
-        if marker in normalized
-    )
     ends_like_intro = normalized.endswith(("다음과", "다음과 같습니다", "다음과 같습니다.", "정리하면 다음과 같습니다."))
-    ends_naturally = bool(re.search(r"[다요.]$", normalized))
-    if ends_naturally and not ends_like_intro:
-        return len(normalized) < MIN_COMPLETE_ANSWER_CHARS
-    return (
-        len(normalized) < MIN_COMPLETE_ANSWER_CHARS
-        or numbered_count < required_count
-        or ends_like_intro
-    )
+    return ends_like_intro
 
 
 def _has_completion_marker(answer: str) -> bool:
-    return bool(re.search(r"[다요.]$", answer.strip()))
+    normalized = answer.strip()
+    return bool(normalized) and not normalized.endswith(("다음과", "다음과 같습니다", "다음과 같습니다.", "정리하면 다음과 같습니다."))
 
 
 async def _iter_stream_tokens(

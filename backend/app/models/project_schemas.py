@@ -42,24 +42,14 @@ class ProjectRagConfig(BaseModel):
 
 
 DEFAULT_SOURCE_INCLUDE_GLOBS = [
-    "**/*.py",
     "**/*.java",
     "**/*.jsp",
     "**/*.xml",
     "**/*.properties",
-    "**/*.js",
-    "**/*.ts",
-    "**/*.tsx",
-    "**/*.jsx",
-    "**/*.go",
-    "**/*.rs",
-    "**/*.kt",
     "**/*.sql",
     "**/*.md",
     "**/*.json",
-    "**/*.html",
-    "**/*.txt",
-    "**/*.sh",
+    "**/*.js",
 ]
 
 DEFAULT_SOURCE_EXCLUDE_GLOBS = [
